@@ -146,22 +146,26 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
         
         # Agar video yuborilmagan bo'lsa, faqat audio yuborish
         if not video_sent:
-            await status_msg.edit_text("🎵 Video katta, audio yuklanmoqda...")
-            await context.bot.send_chat_action(message.chat_id, ChatAction.UPLOAD_AUDIO)
+            await status_msg.edit_text("🎵 Audio yuklanmoqda... ⚡")
             
             audio_result = await downloader.download_audio(url, user_id)
             
             if audio_result.get("success"):
                 audio_path = audio_result["filepath"]
-                
-                # Musiqani aniqlash
-                music_result = await recognizer.recognize_from_file(audio_path)
-                
                 video_title = video_result.get('title', 'Audio') if video_result.get('success') else 'Audio'
-                artist_name = music_result.get('artist', 'Nomalum') if music_result.get('success') else 'Nomalum'
+                
+                # User data saqlash (Shazam'siz - tezroq)
+                user_music_data[user_id] = {
+                    "title": video_title,
+                    "artist": "",
+                    "audio_path": audio_path,
+                }
                 
                 keyboard = [
-                    [InlineKeyboardButton("🔄 Remix/Cover topish", callback_data=f"remix_{user_id}")]
+                    [
+                        InlineKeyboardButton("🎤 Shazam", callback_data=f"shazam_{user_id}"),
+                        InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
+                    ]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -169,39 +173,23 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                     await message.reply_audio(
                         audio=audio_file,
                         title=video_title,
-                        performer=artist_name,
-                        caption="🎵 Video katta bo'lgani uchun faqat audio yuborildi",
+                        caption="🎵 Audio tayyor!\n\n🎤 Shazam - qo'shiq nomini aniqlash\n🔄 Remix - versiyalarini topish",
                         reply_markup=reply_markup,
                     )
-                
-                if music_result.get("success"):
-                    user_music_data[user_id] = {
-                        "title": music_result["title"],
-                        "artist": music_result["artist"],
-                        "audio_path": audio_path,
-                    }
-                    
-                    # Musiqa ma'lumotlarini yuborish
-                    text = recognizer.format_result(music_result)
-                    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
             else:
                 error_msg = audio_result.get('error', 'Audio yuklab bolmadi')
                 await status_msg.edit_text(f"❌ {error_msg}")
                 return
         else:
-            # Video yuborilgan bo'lsa, audio'ni fonda yuklab aniqlash
+            # Video yuborilgan bo'lsa, audio ham fonda yuklab qo'yish (Shazam'siz)
             audio_result = await downloader.download_audio(url, user_id)
             
             if audio_result.get("success"):
-                await context.bot.send_chat_action(message.chat_id, ChatAction.TYPING)
-                music_result = await recognizer.recognize_from_file(audio_result["filepath"])
-                
-                if music_result.get("success"):
-                    user_music_data[user_id] = {
-                        "title": music_result["title"],
-                        "artist": music_result["artist"],
-                        "audio_path": audio_result["filepath"],
-                    }
+                user_music_data[user_id] = {
+                    "title": video_result.get('title', 'Audio'),
+                    "artist": "",
+                    "audio_path": audio_result["filepath"],
+                }
         
         # Status xabarini o'chirish
         try:
@@ -299,7 +287,29 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user_id = query.from_user.id
     
-    if data.startswith("audio_"):
+    if data.startswith("shazam_"):
+        # Shazam - musiqa aniqlash (FAQAT KERAK BO'LGANDA)
+        if user_id in user_music_data and "audio_path" in user_music_data[user_id]:
+            audio_path = user_music_data[user_id]["audio_path"]
+            if os.path.exists(audio_path):
+                await query.message.reply_text("🎤 Shazam aniqlamoqda...")
+                
+                music_result = await recognizer.recognize_from_file(audio_path)
+                
+                if music_result.get("success"):
+                    user_music_data[user_id]["title"] = music_result["title"]
+                    user_music_data[user_id]["artist"] = music_result["artist"]
+                    
+                    text = recognizer.format_result(music_result)
+                    await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+                else:
+                    await query.message.reply_text("😔 Qo'shiq aniqlanmadi")
+            else:
+                await query.message.reply_text("❌ Audio fayl topilmadi")
+        else:
+            await query.message.reply_text("❌ Avval audio yuboring")
+    
+    elif data.startswith("audio_"):
         # Audio yuborish
         parts = data.split("_", 2)
         if len(parts) >= 2:

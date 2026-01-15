@@ -57,22 +57,28 @@ class Downloader:
             return {"success": False, "error": str(e)}
     
     async def download_audio(self, url: str, user_id: int) -> dict:
-        """Audio yuklab olish (video'dan)"""
+        """Audio yuklab olish - TEZ"""
         output_template = os.path.join(
             self.download_path, 
             f"{user_id}_%(id)s_audio.%(ext)s"
         )
         
-        # FFmpeg'siz - to'g'ridan-to'g'ri audio yuklab olish
+        # Tez sozlamalar - minimal kutish
         ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'bestaudio[filesize<20M]/bestaudio/best[filesize<20M]/best',
             'outtmpl': output_template,
-            'quiet': False,
-            'no_warnings': False,
+            'quiet': True,
+            'no_warnings': True,
             'extract_flat': False,
-            'socket_timeout': 120,
-            'retries': 3,
-            # FFmpeg postprocessor yo'q - to'g'ridan-to'g'ri saqlash
+            'socket_timeout': 30,
+            'retries': 1,
+            'fragment_retries': 1,
+            'skip_unavailable_fragments': True,
+            'ignoreerrors': True,
+            'no_check_certificate': True,
+            'prefer_insecure': True,
+            'geo_bypass': True,
+            'nocheckcertificate': True,
         }
         
         try:
