@@ -19,6 +19,7 @@ from downloader import Downloader
 from music_recognizer import MusicRecognizer
 from remix_finder import RemixFinder
 from music_searcher import MusicSearcher
+from cache import cache
 
 # Logging sozlamalari
 logging.basicConfig(
@@ -36,6 +37,7 @@ searcher = MusicSearcher()
 # Foydalanuvchi ma'lumotlarini saqlash
 user_music_data = {}
 user_search_data = {}  # Qidiruv natijalari
+user_url_data = {}  # URL va user_id bog'liqligi
 
 
 # ==================== HANDLERS ====================
@@ -91,6 +93,30 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
     status_msg = await message.reply_text(MESSAGES["downloading"])
     await context.bot.send_chat_action(message.chat_id, ChatAction.UPLOAD_VIDEO)
     
+    # KESH TEKSHIRISH - Video uchun
+    cached_video_id = cache.get_video(url)
+    if cached_video_id:
+        try:
+            await status_msg.edit_text("⚡ Keshdan topildi...")
+            await message.reply_video(
+                video=cached_video_id,
+                caption=f"🎬 Video topildi!\n🔗 {url}\n\n⚡ Tezkor yuklash (Keshdan)",
+                reply_markup=InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🎵 Audio olish", callback_data=f"audio_{user_id}"),
+                        InlineKeyboardButton("🔄 Remix/Cover", callback_data=f"remix_{user_id}"),
+                    ]
+                ])
+            )
+            await status_msg.delete()
+            # Fondagi audio uchun keshni yangilab qo'yamiz
+            cached_audio_id = cache.get_audio(url)
+            if cached_audio_id:
+                 user_music_data[user_id] = {"title": "Audio", "artist": "", "file_id": cached_audio_id}
+            return
+        except Exception as e:
+            logger.warning(f"Keshdan yuborishda xato: {e}")
+
     try:
         # Video yuklab olish
         video_result = await downloader.download_video(url, user_id)
@@ -132,12 +158,16 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     with open(video_path, 'rb') as video_file:
-                        await message.reply_video(
+                        sent_video = await message.reply_video(
                             video=video_file,
                             caption=caption,
                             parse_mode=ParseMode.MARKDOWN,
                             reply_markup=reply_markup,
                         )
+                        # Keshga saqlash
+                        if sent_video.video:
+                            cache.save_video(url, sent_video.video.file_id, video_title)
+                            
                     video_sent = True
                 except Exception as video_error:
                     logger.warning(f"Video yuborishda xato: {video_error}")
@@ -146,15 +176,24 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
         
         # Agar video yuborilmagan bo'lsa, faqat audio yuborish
         if not video_sent:
+            # Audio keshni tekshirish
+            cached_audio_id = cache.get_audio(url)
+            if cached_audio_id:
+                await message.reply_audio(
+                    audio=cached_audio_id,
+                    caption="🎵 Video katta bo'lgani uchun keshdagi audio yuborildi",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}")]])
+                )
+                await status_msg.delete()
+                return
+
             await status_msg.edit_text("🎵 Audio yuklanmoqda... ⚡")
-            
             audio_result = await downloader.download_audio(url, user_id)
             
             if audio_result.get("success"):
                 audio_path = audio_result["filepath"]
                 video_title = video_result.get('title', 'Audio') if video_result.get('success') else 'Audio'
                 
-                # User data saqlash (Shazam'siz - tezroq)
                 user_music_data[user_id] = {
                     "title": video_title,
                     "artist": "",
@@ -170,26 +209,32 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 with open(audio_path, 'rb') as audio_file:
-                    await message.reply_audio(
+                    sent_audio = await message.reply_audio(
                         audio=audio_file,
                         title=video_title,
                         caption="🎵 Audio tayyor!\n\n🎤 Shazam - qo'shiq nomini aniqlash\n🔄 Remix - versiyalarini topish",
                         reply_markup=reply_markup,
                     )
+                    # Keshga saqlash
+                    if sent_audio.audio:
+                        cache.save_audio(url, sent_audio.audio.file_id, video_title)
             else:
                 error_msg = audio_result.get('error', 'Audio yuklab bolmadi')
                 await status_msg.edit_text(f"❌ {error_msg}")
                 return
         else:
-            # Video yuborilgan bo'lsa, audio ham fonda yuklab qo'yish (Shazam'siz)
-            audio_result = await downloader.download_audio(url, user_id)
-            
-            if audio_result.get("success"):
-                user_music_data[user_id] = {
-                    "title": video_result.get('title', 'Audio'),
-                    "artist": "",
-                    "audio_path": audio_result["filepath"],
-                }
+            # Video yuborilgan bo'lsa, audio ham fonda yuklab qo'yish (Keshda bo'lmasa)
+            if not cache.get_audio(url):
+                audio_result = await downloader.download_audio(url, user_id)
+                if audio_result.get("success"):
+                     # Keshga saqlash uchun bitta yuborib ko'ramiz (lekin o'chiramiz yoki shunchaki saqlab qo'yamiz)
+                     # Telegramda file_id olish uchun yuborish shart. Shuning uchun foydalanuvchiga emas, admin botga yuborsa bo'ladi yoki keshga keyinroq tushadi.
+                     # Hozircha shunchaki path ni saqlaymiz.
+                    user_music_data[user_id] = {
+                        "title": video_result.get('title', 'Audio'),
+                        "artist": "",
+                        "audio_path": audio_result["filepath"],
+                    }
         
         # Status xabarini o'chirish
         try:
@@ -200,6 +245,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
         # Video faylini o'chirish
         if video_path:
             downloader.cleanup_file(video_path)
+
         
     except Exception as e:
         logger.error(f"Link handle error: {e}")
@@ -398,6 +444,17 @@ Yuklab olish uchun birini tanlang 👇"""
                         url = item.get("url", "")
                         
                         if url:
+                            # KESH TEKSHIRISH
+                            cached_audio_id = cache.get_audio(url)
+                            if cached_audio_id:
+                                await query.message.reply_audio(
+                                    audio=cached_audio_id,
+                                    title=item.get("title", "Remix"),
+                                    performer=item.get("channel", ""),
+                                    caption=f"🎧 **{item.get('title', 'Remix')}**\n⚡ Keshdan (Tezkor)"
+                                )
+                                return
+
                             await query.message.reply_text("📥 Remix yuklanmoqda... ⚡")
                             
                             # Audio yuklab olish
@@ -407,12 +464,15 @@ Yuklab olish uchun birini tanlang 👇"""
                                 audio_path = audio_result["filepath"]
                                 
                                 with open(audio_path, 'rb') as audio_file:
-                                    await query.message.reply_audio(
+                                    sent_audio = await query.message.reply_audio(
                                         audio=audio_file,
                                         title=item.get("title", "Remix"),
                                         performer=item.get("channel", ""),
                                         caption=f"🎧 **{item.get('title', 'Remix')}**\n👤 {item.get('channel', '')}"
                                     )
+                                    # Keshga saqlash
+                                    if sent_audio.audio:
+                                        cache.save_audio(url, sent_audio.audio.file_id, item.get("title", ""))
                                 
                                 downloader.cleanup_file(audio_path)
                             else:
@@ -442,25 +502,41 @@ Yuklab olish uchun birini tanlang 👇"""
                         url = item.get("url", "")
                         
                         if url:
-                            await query.message.reply_text(MESSAGES["downloading"])
+                            # KESH TEKSHIRISH - oldin yuklangan bo'lsa tezda yuborish
+                            cached_file_id = cache.get_audio(url)
                             
-                            # Audio yuklab olish
-                            audio_result = await downloader.download_audio(url, user_id)
-                            
-                            if audio_result.get("success"):
-                                audio_path = audio_result["filepath"]
-                                
-                                with open(audio_path, 'rb') as audio_file:
-                                    await query.message.reply_audio(
-                                        audio=audio_file,
-                                        title=item.get("title", "Audio"),
-                                        performer=item.get("channel", ""),
-                                        caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}"
-                                    )
-                                
-                                downloader.cleanup_file(audio_path)
+                            if cached_file_id:
+                                # KESHDAN - juda tez!
+                                await query.message.reply_audio(
+                                    audio=cached_file_id,
+                                    title=item.get("title", "Audio"),
+                                    performer=item.get("channel", ""),
+                                    caption=f"🎵 {item.get('title', 'Audio')}\n⚡ Keshdan"
+                                )
                             else:
-                                await query.message.reply_text("❌ Yuklab bo'lmadi")
+                                # Yangi yuklab olish
+                                await query.message.reply_text(MESSAGES["downloading"])
+                                
+                                audio_result = await downloader.download_audio(url, user_id)
+                                
+                                if audio_result.get("success"):
+                                    audio_path = audio_result["filepath"]
+                                    
+                                    with open(audio_path, 'rb') as audio_file:
+                                        sent_msg = await query.message.reply_audio(
+                                            audio=audio_file,
+                                            title=item.get("title", "Audio"),
+                                            performer=item.get("channel", ""),
+                                            caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}"
+                                        )
+                                    
+                                    # Keshga saqlash
+                                    if sent_msg.audio:
+                                        cache.save_audio(url, sent_msg.audio.file_id, item.get("title", ""))
+                                    
+                                    downloader.cleanup_file(audio_path)
+                                else:
+                                    await query.message.reply_text("❌ Yuklab bo'lmadi")
                         else:
                             await query.message.reply_text("❌ URL topilmadi")
                     else:
