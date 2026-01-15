@@ -332,17 +332,91 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_chat_action(query.message.chat_id, ChatAction.TYPING)
                 
                 results = await remix_finder.find_all_versions(title, artist)
-                text = remix_finder.format_results(results)
                 
-                await query.message.reply_text(
-                    text,
-                    parse_mode=ParseMode.MARKDOWN,
-                    disable_web_page_preview=True,
-                )
+                if results.get("success"):
+                    all_results = results.get("remixes", []) + results.get("covers", [])
+                    
+                    if all_results:
+                        # Natijalarni saqlash
+                        user_search_data[f"remix_{user_id}"] = all_results
+                        
+                        # Inline keyboard yaratish
+                        keyboard = []
+                        for i, item in enumerate(all_results[:6]):
+                            item_title = item.get("title", "")[:35]
+                            duration = item.get("duration", "")
+                            btn_text = f"🎧 {item_title}... ({duration})"
+                            keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"rmx_{i}_{user_id}")])
+                        
+                        reply_markup = InlineKeyboardMarkup(keyboard)
+                        
+                        text_msg = f"""🔄 **Remix va Cover versiyalari**
+
+🎵 **{title}** - {artist}
+
+**{len(all_results)} ta natija topildi!**
+
+Yuklab olish uchun birini tanlang 👇"""
+                        
+                        await query.message.reply_text(
+                            text_msg,
+                            parse_mode=ParseMode.MARKDOWN,
+                            reply_markup=reply_markup
+                        )
+                    else:
+                        await query.message.reply_text("😔 Remix/Cover topilmadi")
+                else:
+                    await query.message.reply_text("😔 Remix/Cover topilmadi")
             else:
                 await query.message.reply_text("❌ Musiqa ma'lumotlari topilmadi")
         else:
             await query.message.reply_text("❌ Avval audio yuboring yoki link tashlang")
+    
+    elif data.startswith("rmx_"):
+        # Remix yuklab olish
+        try:
+            parts = data.split("_")
+            if len(parts) >= 3:
+                index = int(parts[1])
+                rmx_user_id = int(parts[2])
+                
+                key = f"remix_{rmx_user_id}"
+                if key in user_search_data:
+                    results = user_search_data[key]
+                    if index < len(results):
+                        item = results[index]
+                        url = item.get("url", "")
+                        
+                        if url:
+                            await query.message.reply_text("📥 Remix yuklanmoqda... ⚡")
+                            await context.bot.send_chat_action(query.message.chat_id, ChatAction.UPLOAD_AUDIO)
+                            
+                            # Audio yuklab olish
+                            audio_result = await downloader.download_audio(url, user_id)
+                            
+                            if audio_result.get("success"):
+                                audio_path = audio_result["filepath"]
+                                
+                                with open(audio_path, 'rb') as audio_file:
+                                    await query.message.reply_audio(
+                                        audio=audio_file,
+                                        title=item.get("title", "Remix"),
+                                        performer=item.get("channel", ""),
+                                        caption=f"🎧 **{item.get('title', 'Remix')}**\n👤 {item.get('channel', '')}"
+                                    )
+                                
+                                downloader.cleanup_file(audio_path)
+                            else:
+                                await query.message.reply_text("❌ Yuklab bo'lmadi")
+                        else:
+                            await query.message.reply_text("❌ URL topilmadi")
+                    else:
+                        await query.message.reply_text("❌ Natija topilmadi")
+                else:
+                    await query.message.reply_text("❌ Qaytadan qidiring")
+        except Exception as e:
+            logger.error(f"Remix download error: {e}")
+            await query.message.reply_text(MESSAGES["error"])
     
     elif data.startswith("dl_"):
         # Qidiruv natijasini yuklab olish
