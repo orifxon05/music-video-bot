@@ -181,7 +181,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                     text = recognizer.format_result(music_result)
                     await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
             else:
-                await status_msg.edit_text(f"❌ {audio_result.get('error', 'Audio yuklab bo\\'lmadi')}")
+                error_msg = audio_result.get('error', 'Audio yuklab bolmadi')
+                await status_msg.edit_text(f"❌ {error_msg}")
                 return
         else:
             # Video yuborilgan bo'lsa, audio'ni fonda yuklab aniqlash
