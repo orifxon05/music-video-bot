@@ -434,7 +434,6 @@ Yuklab olish uchun birini tanlang 👇"""
                         
                         if url:
                             await query.message.reply_text(MESSAGES["downloading"])
-                            await context.bot.send_chat_action(query.message.chat_id, ChatAction.UPLOAD_AUDIO)
                             
                             # Audio yuklab olish
                             audio_result = await downloader.download_audio(url, user_id)
