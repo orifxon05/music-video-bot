@@ -27,55 +27,64 @@ DOWNLOAD_PATH = "downloads"
 
 # Messages
 MESSAGES = {
-    "start": """🎵 **Musiqa & Video Bot**ga xush kelibsiz!
+    "start": """╔══════════════════════════════╗
+       🎵 **MUSIQA BOT** 🎵
+╚══════════════════════════════╝
 
-🎬 **Video yuklab olish:**
-Instagram, TikTok, Facebook, YouTube va boshqa platformalardan link yuboring.
+Assalomu alaykum! Men sizga yordam beraman:
 
-🎵 **Musiqa topish (Shazam):**
-Audio fayl yuboring - men qo'shiq nomini topaman!
+📥 **YUKLAB OLISH**
+└ Instagram, TikTok, YouTube linkini yuboring
 
-🔄 **Remix/Cover topish:**
-Video yoki audio yuboring - men remix va cover versiyalarini topaman!
+🔍 **QO'SHIQ QIDIRISH**
+└ Qo'shiq nomini yozing: `Sayidat Qaldi`
 
-📋 **Buyruqlar:**
-/start - Botni boshlash
-/help - Yordam
-/stats - Statistika
+🎤 **MUSIQA ANIQLASH**
+└ Audio/Voice yuboring - Shazam orqali topaman
 
-Endi link yoki audio yuboring! 👇""",
+🔄 **REMIX TOPISH**
+└ Asl qo'shiqdan remix/cover versiyalarini topaman
 
-    "help": """📖 **Yordam**
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Video yuklab olish:**
-• Instagram, TikTok, Facebook, YouTube havolalarini yuboring
-• Bot video va audio'ni yuklab beradi
+� **Qo'llab-quvvatlash:**
+Instagram • TikTok • YouTube • Facebook • Twitter
 
-**Musiqa aniqlash:**
-• Audio fayl yuboring (voice, mp3, va h.k.)
-• Bot Shazam orqali qo'shiqni aniqlaydi
+⚡ Tez va Bepul!
 
-**Remix/Cover topish:**
-• Video yoki audio'dagi musiqa aniqlanganidan so'ng
-• Bot YouTube'dan remix/cover versiyalarini topadi
+Boshlash uchun link yoki qo'shiq nomi yuboring 👇""",
 
-**Qo'llab-quvvatlanadigan platformalar:**
-📸 Instagram (Reels, Posts, Stories)
-🎵 TikTok
-📘 Facebook
-▶️ YouTube / YouTube Shorts
-🐦 Twitter/X
-📌 Pinterest
-🔴 Reddit
+    "help": """📖 **YORDAM**
 
-❓ Savollar uchun: @admin""",
+🔹 **Video yuklab olish:**
+   Link yuboring va Video/Audio tugmasini tanlang
 
-    "processing": "⏳ Qayta ishlanmoqda...",
-    "downloading": "📥 Yuklab olinmoqda...",
-    "recognizing": "🎵 Musiqa aniqlanmoqda...",
+🔹 **Qo'shiq qidirish:**
+   Qo'shiq nomini yozing, masalan:
+   `Akon - Lonely`
+   `Senorita`
+
+🔹 **Musiqa aniqlash (Shazam):**
+   Audio fayl yoki voice yuboring
+
+🔹 **Remix/Cover:**
+   Musiqa topilgandan so'ng tugmani bosing
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 **Platformalar:**
+📸 Instagram  🎵 TikTok  📘 Facebook
+▶️ YouTube   🐦 Twitter  📌 Pinterest
+
+❓ Savollar: @admin""",
+
+    "processing": "⏳ Kuting...",
+    "downloading": "📥 Yuklanmoqda... ⚡",
+    "recognizing": "🎵 Shazam aniqlamoqda...",
     "finding_remixes": "🔄 Remix/Cover qidirilmoqda...",
-    "error": "❌ Xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring.",
-    "unsupported_link": "❌ Bu platforma qo'llab-quvvatlanmaydi.",
-    "no_music_found": "😔 Musiqa topilmadi. Boshqa audio bilan sinab ko'ring.",
-    "file_too_large": "❌ Fayl juda katta (max 50MB).",
+    "searching": "🔍 Qidirilmoqda...",
+    "error": "❌ Xatolik! Qaytadan urinib ko'ring.",
+    "unsupported_link": "❌ Bu platform qo'llab-quvvatlanmaydi.\n\n✅ Instagram, TikTok, YouTube, Facebook ishlaydi!",
+    "no_music_found": "😔 Musiqa topilmadi. Boshqa audio sinab ko'ring.",
+    "file_too_large": "📦 Fayl katta! Faqat audio yuboriladi...",
 }

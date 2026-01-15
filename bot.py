@@ -2,6 +2,7 @@
 import os
 import re
 import logging
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -17,6 +18,7 @@ from config import BOT_TOKEN, MESSAGES, DOWNLOAD_PATH
 from downloader import Downloader
 from music_recognizer import MusicRecognizer
 from remix_finder import RemixFinder
+from music_searcher import MusicSearcher
 
 # Logging sozlamalari
 logging.basicConfig(
@@ -29,9 +31,11 @@ logger = logging.getLogger(__name__)
 downloader = Downloader()
 recognizer = MusicRecognizer()
 remix_finder = RemixFinder()
+searcher = MusicSearcher()
 
 # Foydalanuvchi ma'lumotlarini saqlash
 user_music_data = {}
+user_search_data = {}  # Qidiruv natijalari
 
 
 # ==================== HANDLERS ====================
@@ -339,11 +343,57 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.message.reply_text("❌ Musiqa ma'lumotlari topilmadi")
         else:
             await query.message.reply_text("❌ Avval audio yuboring yoki link tashlang")
+    
+    elif data.startswith("dl_"):
+        # Qidiruv natijasini yuklab olish
+        try:
+            parts = data.split("_")
+            if len(parts) >= 3:
+                index = int(parts[1])
+                search_user_id = int(parts[2])
+                
+                if search_user_id in user_search_data:
+                    results = user_search_data[search_user_id]
+                    if index < len(results):
+                        item = results[index]
+                        url = item.get("url", "")
+                        
+                        if url:
+                            await query.message.reply_text(MESSAGES["downloading"])
+                            await context.bot.send_chat_action(query.message.chat_id, ChatAction.UPLOAD_AUDIO)
+                            
+                            # Audio yuklab olish
+                            audio_result = await downloader.download_audio(url, user_id)
+                            
+                            if audio_result.get("success"):
+                                audio_path = audio_result["filepath"]
+                                
+                                with open(audio_path, 'rb') as audio_file:
+                                    await query.message.reply_audio(
+                                        audio=audio_file,
+                                        title=item.get("title", "Audio"),
+                                        performer=item.get("channel", ""),
+                                        caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}"
+                                    )
+                                
+                                downloader.cleanup_file(audio_path)
+                            else:
+                                await query.message.reply_text("❌ Yuklab bo'lmadi")
+                        else:
+                            await query.message.reply_text("❌ URL topilmadi")
+                    else:
+                        await query.message.reply_text("❌ Natija topilmadi")
+                else:
+                    await query.message.reply_text("❌ Qaytadan qidiring")
+        except Exception as e:
+            logger.error(f"Download callback error: {e}")
+            await query.message.reply_text(MESSAGES["error"])
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Matn xabarlari"""
     text = update.message.text.strip()
+    user_id = update.message.from_user.id
     
     # URL bormi tekshirish
     url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
@@ -352,9 +402,48 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if urls:
         # URL topildi, link handler'ga yuborish
         await handle_link(update, context, urls[0])
+    elif len(text) >= 2:
+        # Qo'shiq nomi bilan qidirish
+        status_msg = await update.message.reply_text(MESSAGES["searching"])
+        await context.bot.send_chat_action(update.message.chat_id, ChatAction.TYPING)
+        
+        try:
+            # YouTube'dan qidirish
+            results = await searcher.search_by_name(text)
+            
+            if results.get("success") and results.get("results"):
+                # Natijalarni saqlash
+                user_search_data[user_id] = results.get("results", [])
+                
+                # Inline keyboard yaratish
+                keyboard = []
+                for i, item in enumerate(results.get("results", [])[:5]):
+                    title = item.get("title", "")[:40]
+                    duration = item.get("duration", "")
+                    btn_text = f"🎵 {title}... ({duration})"
+                    keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"dl_{i}_{user_id}")])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                text_msg = f"""🔍 **Qidiruv: "{text}"**
+
+🎵 **{len(results.get('results', []))} ta natija topildi!**
+
+Yuklab olish uchun birini tanlang 👇"""
+                
+                await status_msg.edit_text(
+                    text_msg,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=reply_markup
+                )
+            else:
+                await status_msg.edit_text("😔 Hech narsa topilmadi. Boshqa nom bilan sinab ko'ring.")
+        except Exception as e:
+            logger.error(f"Search error: {e}")
+            await status_msg.edit_text(MESSAGES["error"])
     else:
         await update.message.reply_text(
-            "❓ Iltimos, ijtimoiy tarmoq havolasini yuboring yoki audio fayl yuboring.",
+            "❓ Link yuboring yoki qo'shiq nomini yozing!",
             parse_mode=ParseMode.MARKDOWN,
         )
 
