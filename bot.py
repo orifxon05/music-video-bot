@@ -91,64 +91,122 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
         # Video yuklab olish
         video_result = await downloader.download_video(url, user_id)
         
-        if not video_result.get("success"):
-            await status_msg.edit_text(f"❌ {video_result.get('error', MESSAGES['error'])}")
-            return
+        video_sent = False
+        video_path = None
         
-        video_path = video_result["filepath"]
-        
-        # Video yuborish
-        await status_msg.edit_text("📤 Video yuborilmoqda...")
-        
-        video_title = video_result.get('title', 'Video')
-        platform = video_result.get('platform', 'Nomalum').title()
-        uploader = video_result.get('uploader', 'Nomalum')
-        duration = format_duration(video_result.get('duration', 0))
-        
-        caption = f"""🎬 **{video_title}**
+        if video_result.get("success"):
+            video_path = video_result["filepath"]
+            
+            # Fayl hajmini tekshirish (50MB dan kichik bo'lsa yuborish)
+            import os
+            file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+            
+            if file_size_mb <= 50:
+                try:
+                    # Video yuborish
+                    await status_msg.edit_text("📤 Video yuborilmoqda...")
+                    
+                    video_title = video_result.get('title', 'Video')
+                    platform = video_result.get('platform', 'Nomalum').title()
+                    uploader = video_result.get('uploader', 'Nomalum')
+                    duration = format_duration(video_result.get('duration', 0))
+                    
+                    caption = f"""🎬 **{video_title}**
 
 📱 Platform: {platform}
 👤 Muallif: {uploader}
 ⏱ Davomiylik: {duration}
 
 🎵 Audio va remix topish uchun quyidagi tugmani bosing 👇"""
+                    
+                    keyboard = [
+                        [
+                            InlineKeyboardButton("🎵 Audio olish", callback_data=f"audio_{user_id}"),
+                            InlineKeyboardButton("🔄 Remix/Cover", callback_data=f"remix_{user_id}"),
+                        ]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    with open(video_path, 'rb') as video_file:
+                        await message.reply_video(
+                            video=video_file,
+                            caption=caption,
+                            parse_mode=ParseMode.MARKDOWN,
+                            reply_markup=reply_markup,
+                        )
+                    video_sent = True
+                except Exception as video_error:
+                    logger.warning(f"Video yuborishda xato: {video_error}")
+            else:
+                logger.info(f"Video juda katta: {file_size_mb:.1f}MB, faqat audio yuboriladi")
         
-        keyboard = [
-            [
-                InlineKeyboardButton("🎵 Audio olish", callback_data=f"audio_{user_id}_{url[:50]}"),
-                InlineKeyboardButton("🔄 Remix/Cover", callback_data=f"remix_{user_id}"),
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        with open(video_path, 'rb') as video_file:
-            await message.reply_video(
-                video=video_file,
-                caption=caption,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=reply_markup,
-            )
+        # Agar video yuborilmagan bo'lsa, faqat audio yuborish
+        if not video_sent:
+            await status_msg.edit_text("🎵 Video katta, audio yuklanmoqda...")
+            await context.bot.send_chat_action(message.chat_id, ChatAction.UPLOAD_AUDIO)
+            
+            audio_result = await downloader.download_audio(url, user_id)
+            
+            if audio_result.get("success"):
+                audio_path = audio_result["filepath"]
+                
+                # Musiqani aniqlash
+                music_result = await recognizer.recognize_from_file(audio_path)
+                
+                video_title = video_result.get('title', 'Audio') if video_result.get('success') else 'Audio'
+                artist_name = music_result.get('artist', 'Nomalum') if music_result.get('success') else 'Nomalum'
+                
+                keyboard = [
+                    [InlineKeyboardButton("🔄 Remix/Cover topish", callback_data=f"remix_{user_id}")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                with open(audio_path, 'rb') as audio_file:
+                    await message.reply_audio(
+                        audio=audio_file,
+                        title=video_title,
+                        performer=artist_name,
+                        caption="🎵 Video katta bo'lgani uchun faqat audio yuborildi",
+                        reply_markup=reply_markup,
+                    )
+                
+                if music_result.get("success"):
+                    user_music_data[user_id] = {
+                        "title": music_result["title"],
+                        "artist": music_result["artist"],
+                        "audio_path": audio_path,
+                    }
+                    
+                    # Musiqa ma'lumotlarini yuborish
+                    text = recognizer.format_result(music_result)
+                    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+            else:
+                await status_msg.edit_text(f"❌ {audio_result.get('error', 'Audio yuklab bo\\'lmadi')}")
+                return
+        else:
+            # Video yuborilgan bo'lsa, audio'ni fonda yuklab aniqlash
+            audio_result = await downloader.download_audio(url, user_id)
+            
+            if audio_result.get("success"):
+                await context.bot.send_chat_action(message.chat_id, ChatAction.TYPING)
+                music_result = await recognizer.recognize_from_file(audio_result["filepath"])
+                
+                if music_result.get("success"):
+                    user_music_data[user_id] = {
+                        "title": music_result["title"],
+                        "artist": music_result["artist"],
+                        "audio_path": audio_result["filepath"],
+                    }
         
         # Status xabarini o'chirish
-        await status_msg.delete()
-        
-        # Audio yuklab olish (fonda)
-        audio_result = await downloader.download_audio(url, user_id)
-        
-        if audio_result.get("success"):
-            # Musiqani aniqlash
-            await context.bot.send_chat_action(message.chat_id, ChatAction.TYPING)
-            music_result = await recognizer.recognize_from_file(audio_result["filepath"])
-            
-            if music_result.get("success"):
-                user_music_data[user_id] = {
-                    "title": music_result["title"],
-                    "artist": music_result["artist"],
-                    "audio_path": audio_result["filepath"],
-                }
+        try:
+            await status_msg.delete()
+        except:
+            pass
         
         # Video faylini o'chirish
-        downloader.cleanup_file(video_path)
+        if video_path:
+            downloader.cleanup_file(video_path)
         
     except Exception as e:
         logger.error(f"Link handle error: {e}")
