@@ -1,0 +1,21 @@
+# Telegram Bot
+python-telegram-bot==20.7
+
+# Video Downloading
+yt-dlp
+
+# Audio Recognition (Shazam-like)
+shazamio==0.5.1
+
+# Audio Processing
+pydub==0.25.1
+
+# HTTP Requests
+aiohttp==3.9.1
+requests==2.31.0
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# For searching remixes/covers
+youtube-search-python==1.6.6
