@@ -60,32 +60,81 @@ class Downloader:
         """Audio yuklab olish (video'dan)"""
         output_template = os.path.join(
             self.download_path, 
-            f"{user_id}_%(id)s_audio"
+            f"{user_id}_%(id)s_audio.%(ext)s"
         )
         
+        # FFmpeg'siz - to'g'ridan-to'g'ri audio yuklab olish
         ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': output_template + '.%(ext)s',
-            'quiet': True,
-            'no_warnings': True,
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'outtmpl': output_template,
+            'quiet': False,
+            'no_warnings': False,
             'extract_flat': False,
-            'socket_timeout': 60,
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '128',
-            }],
+            'socket_timeout': 120,
+            'retries': 3,
+            # FFmpeg postprocessor yo'q - to'g'ridan-to'g'ri saqlash
         }
         
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None, 
-                lambda: self._download_audio_yt_dlp(url, ydl_opts, output_template)
+                lambda: self._download_audio_simple(url, ydl_opts)
             )
             return result
         except Exception as e:
             return {"success": False, "error": str(e)}
+    
+    def _download_audio_simple(self, url: str, ydl_opts: dict) -> dict:
+        """Oddiy audio yuklab olish"""
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                
+                if info is None:
+                    return {"success": False, "error": "Ma'lumot olishda xatolik"}
+                
+                # Fayl yo'lini topish
+                filepath = None
+                
+                if 'requested_downloads' in info and info['requested_downloads']:
+                    filepath = info['requested_downloads'][0].get('filepath')
+                
+                if not filepath:
+                    # Template dan yaratish
+                    video_id = info.get('id', 'unknown')
+                    ext = info.get('ext', 'm4a')
+                    filepath = ydl_opts['outtmpl'] % {'id': video_id, 'ext': ext}
+                
+                # Fayl mavjudligini tekshirish
+                if filepath and os.path.exists(filepath):
+                    return {
+                        "success": True,
+                        "filepath": filepath,
+                        "title": info.get('title', 'Audio'),
+                        "duration": info.get('duration', 0),
+                        "uploader": info.get('uploader', ''),
+                    }
+                
+                # Downloads papkasidan qidirish
+                video_id = info.get('id', '')
+                if video_id:
+                    for filename in os.listdir(self.download_path):
+                        if video_id in filename:
+                            filepath = os.path.join(self.download_path, filename)
+                            if os.path.exists(filepath):
+                                return {
+                                    "success": True,
+                                    "filepath": filepath,
+                                    "title": info.get('title', 'Audio'),
+                                    "duration": info.get('duration', 0),
+                                    "uploader": info.get('uploader', ''),
+                                }
+                
+                return {"success": False, "error": "Fayl topilmadi"}
+                    
+        except Exception as e:
+            return {"success": False, "error": f"Xatolik: {str(e)[:100]}"}
     
     def _download_audio_yt_dlp(self, url: str, ydl_opts: dict, output_template: str) -> dict:
         """Audio yuklab olish - maxsus"""
