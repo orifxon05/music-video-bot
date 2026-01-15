@@ -176,12 +176,13 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
         
         # Agar video yuborilmagan bo'lsa, faqat audio yuborish
         if not video_sent:
-            # Audio keshni tekshirish
             cached_audio_id = cache.get_audio(url)
             if cached_audio_id:
                 await message.reply_audio(
                     audio=cached_audio_id,
-                    caption="🎵 Video katta bo'lgani uchun keshdagi audio yuborildi",
+                    title=video_result.get('title', 'Audio') if video_result.get('success') else 'Audio',
+                    performer=video_result.get('uploader', 'Music Bot') if video_result.get('success') else 'Music Bot',
+                    caption="🎵 Keshdagi audio yuborildi",
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}")]])
                 )
                 await status_msg.delete()
@@ -209,9 +210,11 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 with open(audio_path, 'rb') as audio_file:
+                    performer = audio_result.get('uploader', 'Music Bot')
                     sent_audio = await message.reply_audio(
                         audio=audio_file,
                         title=video_title,
+                        performer=performer,
                         caption="🎵 Audio tayyor!\n\n🎤 Shazam - qo'shiq nomini aniqlash\n🔄 Remix - versiyalarini topish",
                         reply_markup=reply_markup,
                     )

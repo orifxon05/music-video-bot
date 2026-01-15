@@ -63,22 +63,14 @@ class Downloader:
             f"{user_id}_%(id)s_audio.%(ext)s"
         )
         
-        # Tez sozlamalar - minimal kutish
+        # Tez va sifatli format - m4a Player uchun eng yaxshisi
         ydl_opts = {
-            'format': 'bestaudio[filesize<20M]/bestaudio/best[filesize<20M]/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': False,
-            'socket_timeout': 30,
-            'retries': 1,
-            'fragment_retries': 1,
-            'skip_unavailable_fragments': True,
-            'ignoreerrors': True,
-            'no_check_certificate': True,
-            'prefer_insecure': True,
-            'geo_bypass': True,
-            'nocheckcertificate': True,
+            'socket_timeout': 60,
+            'retries': 2,
         }
         
         try:
