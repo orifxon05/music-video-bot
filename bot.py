@@ -300,11 +300,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-def format_duration(seconds: int) -> str:
+def format_duration(seconds) -> str:
     """Sekundlarni formatlash"""
     if not seconds:
         return "0:00"
     
+    seconds = int(seconds)  # float bo'lsa int ga aylantirish
     minutes = seconds // 60
     secs = seconds % 60
     
