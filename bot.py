@@ -69,11 +69,14 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str = None):
     """Link yuborilganda"""
     message = update.message
     user_id = message.from_user.id
-    url = message.text.strip()
+    
+    # URL ni olish
+    if url is None:
+        url = message.text.strip()
     
     # URL ni tekshirish
     if not downloader.is_supported_url(url):
@@ -289,8 +292,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if urls:
         # URL topildi, link handler'ga yuborish
-        update.message.text = urls[0]
-        await handle_link(update, context)
+        await handle_link(update, context, urls[0])
     else:
         await update.message.reply_text(
             "❓ Iltimos, ijtimoiy tarmoq havolasini yuboring yoki audio fayl yuboring.",
