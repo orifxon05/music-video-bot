@@ -635,6 +635,14 @@ def main():
     # Bot yaratish
     application = Application.builder().token(BOT_TOKEN).build()
     
+    # Keshni tozalash vazifasini qo'shish (har 12 soatda)
+    async def clear_cache_job(context: ContextTypes.DEFAULT_TYPE):
+        cache.clear_old()
+        logger.info("🧹 Eski keshlari tozalandi")
+        
+    job_queue = application.job_queue
+    job_queue.run_repeating(clear_cache_job, interval=12*3600, first=3600)
+    
     # Handlerlarni qo'shish
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
