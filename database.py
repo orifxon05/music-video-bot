@@ -1,17 +1,28 @@
 """PostgreSQL Database moduli"""
 import os
-import json
+import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self):
         self.database_url = os.getenv("DATABASE_URL")
+        if self.database_url:
+            logger.info(f"DATABASE_URL topildi: {self.database_url[:30]}...")
+        else:
+            logger.warning("DATABASE_URL topilmadi!")
         self._init_db()
 
     def _get_connection(self):
         """Database ulanishini olish"""
-        return psycopg2.connect(self.database_url, cursor_factory=RealDictCursor)
+        # Railway PostgreSQL uchun SSL
+        return psycopg2.connect(
+            self.database_url, 
+            cursor_factory=RealDictCursor,
+            sslmode='require'
+        )
 
     def _init_db(self):
         """Jadvallarni yaratish"""
@@ -102,7 +113,9 @@ class Database:
 
     def add_channel(self, name, channel_id, url):
         """Kanal qo'shish"""
+        logger.info(f"Kanal qo'shilmoqda: {name}, {channel_id}, {url}")
         if not self.database_url:
+            logger.error("DATABASE_URL yo'q!")
             return False
         try:
             conn = self._get_connection()
@@ -114,9 +127,10 @@ class Database:
             conn.commit()
             cur.close()
             conn.close()
+            logger.info("Kanal muvaffaqiyatli qo'shildi!")
             return True
         except Exception as e:
-            print(f"Add channel error: {e}")
+            logger.error(f"Add channel error: {e}")
             return False
 
     def get_channels(self):
