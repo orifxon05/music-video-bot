@@ -1,13 +1,20 @@
 """Qo'shiq qidirish moduli - nom bo'yicha"""
 import asyncio
-from youtubesearchpython import VideosSearch
+import yt_dlp
 
 
 class MusicSearcher:
-    """Qo'shiq nomi bo'yicha qidirish"""
+    """Qo'shiq nomi bo'yicha qidirish (yt-dlp ishlatadi - eng barqaror)"""
     
     def __init__(self):
-        self.max_results = 15  # Ko'proq natija olamiz
+        self.max_results = 10
+        self.ydl_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,
+            'skip_download': True,
+        }
     
     async def search_by_name(self, query: str) -> dict:
         """Qo'shiq nomini qidirish"""
@@ -16,82 +23,59 @@ class MusicSearcher:
             if not query:
                 return {"success": False, "error": "Bo'sh qidiruv"}
             
-            # YouTube'da qidirish - qo'shimchalarsiz, YouTube o'zi aqlli
-            print(f"DEBUG: Searching YouTube for: {query}")
-            results = await self._search_youtube(query)
+            # yt-dlp search query
+            search_query = f"ytsearch{self.max_results}:{query}"
             
-            if results:
-                print(f"DEBUG: Found {len(results)} results")
-                return {
-                    "success": True,
-                    "query": query,
-                    "results": results,
-                    "count": len(results),
-                }
-            else:
-                print(f"DEBUG: No results found for: {query}")
-                return {"success": False, "error": "Hech narsa topilmadi"}
-                
-        except Exception as e:
-            print(f"DEBUG: Search error: {e}")
-            return {"success": False, "error": str(e)}
-    
-    async def search_song(self, title: str, artist: str = "") -> dict:
-        """Qo'shiq va ijrochini qidirish"""
-        query = f"{artist} {title}".strip() if artist else title
-        return await self.search_by_name(query)
-    
-    async def _search_youtube(self, query: str) -> list:
-        """YouTube'da qidirish"""
-        try:
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(
                 None,
-                lambda: self._do_search(query)
+                lambda: self._extract_info(search_query)
             )
-            return results
-        except Exception:
-            return []
-    
-    def _do_search(self, query: str) -> list:
-        """Qidirish bajarish"""
-        try:
-            search = VideosSearch(query, limit=self.max_results)
-            raw_results = search.result()
             
-            videos = []
-            for video in raw_results.get('result', []):
-                videos.append({
-                    "title": video.get('title', 'Nomalum'),
-                    "url": video.get('link', ''),
-                    "duration": video.get('duration', ''),
-                    "views": video.get('viewCount', {}).get('short', ''),
-                    "channel": video.get('channel', {}).get('name', ''),
-                    "thumbnail": video.get('thumbnails', [{}])[0].get('url', ''),
-                    "published": video.get('publishedTime', ''),
-                    "id": video.get('id', ''),
-                })
+            if results and 'entries' in results:
+                formatted_results = []
+                for entry in results['entries']:
+                    if not entry: continue
+                    
+                    formatted_results.append({
+                        "title": entry.get('title', 'Nomalum'),
+                        "url": entry.get('url') or entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}",
+                        "duration": self._format_duration(entry.get('duration')),
+                        "views": self._format_views(entry.get('view_count')),
+                        "channel": entry.get('uploader', 'Nomalum'),
+                        "id": entry.get('id', ''),
+                    })
+                
+                if formatted_results:
+                    return {
+                        "success": True,
+                        "query": query,
+                        "results": formatted_results,
+                        "count": len(formatted_results),
+                    }
             
-            return videos
-        except Exception:
-            return []
+            return {"success": False, "error": "Hech narsa topilmadi"}
+                
+        except Exception as e:
+            print(f"DEBUG: yt-dlp search error: {e}")
+            return {"success": False, "error": str(e)}
     
-    def format_results(self, results: dict) -> str:
-        """Natijalarni formatlash"""
-        if not results.get('success'):
-            return f"❌ {results.get('error', 'Qidirishda xatolik')}"
-        
-        text = f"""🔍 **Qidiruv: "{results['query']}"**
+    def _extract_info(self, query: str):
+        with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+            return ydl.extract_info(query, download=False)
 
-🎵 **Topildi: {results['count']} ta natija**
+    def _format_duration(self, seconds) -> str:
+        if not seconds: return "Nomalum"
+        seconds = int(seconds)
+        minutes = seconds // 60
+        secs = seconds % 60
+        return f"{minutes}:{secs:02d}"
 
-"""
-        
-        for i, item in enumerate(results.get('results', []), 1):
-            text += f"""**{i}. {item['title']}**
-👤 {item['channel']} • ⏱ {item['duration']} • 👁 {item['views']}
-🔗 /download_{item['id']}
-
-"""
-        
-        return text.strip()
+    def _format_views(self, views) -> str:
+        if not views: return "0"
+        views = int(views)
+        if views >= 1000000:
+            return f"{views/1000000:.1f}M"
+        if views >= 1000:
+            return f"{views/1000:.1f}K"
+        return str(views)
