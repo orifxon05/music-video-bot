@@ -374,10 +374,23 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not (message.audio or message.voice or (message.document and message.document.mime_type and 'audio' in message.document.mime_type)):
         return
     
-    status_msg = await message.reply_text(MESSAGES["recognizing"])
-    await context.bot.send_chat_action(message.chat_id, ChatAction.TYPING)
-    
     try:
+        # Faylni olish
+        if message.audio:
+            file = message.audio
+            file_name = file.file_name or f"{user_id}_audio.mp3"
+        elif message.voice:
+            file = message.voice
+            file_name = f"{user_id}_voice.ogg"
+        elif message.document and message.document.mime_type and 'audio' in message.document.mime_type:
+            file = message.document
+            file_name = file.file_name or f"{user_id}_document.mp3"
+        else:
+            return
+
+        status_msg = await message.reply_text(MESSAGES["recognizing"])
+        await context.bot.send_chat_action(message.chat_id, ChatAction.TYPING)
+
         # Faylni yuklab olish
         os.makedirs(DOWNLOAD_PATH, exist_ok=True)
         file_path = os.path.join(DOWNLOAD_PATH, file_name)
@@ -474,6 +487,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             audio=audio_file,
                             title=user_music_data[user_id].get("title", "Audio"),
                             performer=user_music_data[user_id].get("artist", ""),
+                            reply_markup=InlineKeyboardMarkup([
+                                [
+                                    InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                                    InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
+                                ]
+                            ])
                         )
                 else:
                     await query.message.reply_text("❌ Audio fayl topilmadi")
@@ -746,7 +765,8 @@ async def broadcast_task(update: Update, context: ContextTypes.DEFAULT_TYPE, tex
 
     for user_id in users:
         try:
-            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.MARKDOWN)
+            # HTML mode is safer for links with underscores
+            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
             count += 1
             if count % 20 == 0:
                 await msg.edit_text(f"⏳ Jarayon: {count}/{len(users)} yuborildi...")
