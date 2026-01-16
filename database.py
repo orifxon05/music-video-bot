@@ -136,6 +136,7 @@ class Database:
     def get_channels(self):
         """Barcha kanallar"""
         if not self.database_url:
+            logger.warning("get_channels: DATABASE_URL yo'q!")
             return []
         try:
             conn = self._get_connection()
@@ -144,9 +145,10 @@ class Database:
             channels = [dict(row) for row in cur.fetchall()]
             cur.close()
             conn.close()
+            logger.info(f"Kanallar topildi: {len(channels)} ta")
             return channels
         except Exception as e:
-            print(f"Get channels error: {e}")
+            logger.error(f"Get channels error: {e}")
             return []
 
     def remove_channel(self, index):
