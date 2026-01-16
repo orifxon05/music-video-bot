@@ -341,6 +341,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Audio yuborilganda (Shazam)"""
     message = update.message
+    user_id = message.from_user.id
     db.add_user(user_id)
     if not await check_subscription(update, context):
         return
@@ -705,6 +706,7 @@ async def add_channel_task(update: Update, context: ContextTypes.DEFAULT_TYPE, t
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Matn xabarlari"""
     text = update.message.text.strip()
+    user_id = update.message.from_user.id
     db.add_user(user_id)
     
     # Admin inputlarini tekshirish (Broadcast yoki Kanal qo'shish uchun)
