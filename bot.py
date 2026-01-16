@@ -56,26 +56,24 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     not_subscribed = []
     for channel in channels:
         try:
-            # Kanal ID si to'g'riligini tekshirish (faqat raqam yoki @ bilan boshlanishi kerak)
             chat_id = channel['id']
+            
+            # ID raqam yoki @ bilan boshlanishi kerak
             if isinstance(chat_id, str) and not chat_id.startswith('-') and not chat_id.startswith('@'):
-                # Agar ID noto'g'ri kiritilgan bo'lsa (masalan -100 tushib qolgan bo'lsa)
-                logger.warning(f"Noto'g'ri kanal ID: {chat_id}")
-                continue
-
+                # Username bo'lsa, @ qo'shamiz
+                chat_id = '@' + chat_id
+            
             member = await context.bot.get_chat_member(chat_id=chat_id, user_id=user_id)
             if member.status in ['left', 'kicked']:
                 not_subscribed.append(channel)
         except Exception as e:
             logger.error(f"Subscription check error for {channel['id']}: {e}")
-            # Agar bot kanal admini bo'lmasa, member statusini tekshira olmaydi
-            # Bunday holatda kanalni ro'yxatdan o'tkazib yuboramiz (foydalanuvchini bloklamaslik uchun)
-            continue
+            # Xatolik bo'lsa ham obuna so'raymiz (tekshira olmadik = obuna bo'lmagan deb hisoblaymiz)
+            not_subscribed.append(channel)
             
     if not_subscribed:
         keyboard = []
         for ch in not_subscribed:
-            # "Obuna bo'lish" tugmasi
             keyboard.append([InlineKeyboardButton(f"➕ Obuna bo'lish", url=ch['url'])])
         
         keyboard.append([InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")])
