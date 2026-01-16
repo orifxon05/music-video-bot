@@ -7,7 +7,7 @@ class MusicSearcher:
     """Qo'shiq nomi bo'yicha qidirish"""
     
     def __init__(self):
-        self.max_results = 5
+        self.max_results = 10
     
     async def search_by_name(self, query: str) -> dict:
         """Qo'shiq nomini qidirish"""
@@ -17,8 +17,18 @@ class MusicSearcher:
             if not query:
                 return {"success": False, "error": "Bo'sh qidiruv"}
             
+            # Agar queryda musiqa bilan bog'liq so'zlar bo'lmasa, "audio" qo'shamiz
+            search_query = query
+            music_keywords = ['audio', 'song', 'mp3', 'music', 'qo\'shiq', 'remix', 'fm']
+            if not any(word in query.lower() for word in music_keywords):
+                search_query = f"{query} audio"
+            
             # YouTube'da qidirish
-            results = await self._search_youtube(query)
+            results = await self._search_youtube(search_query)
+            
+            # Agar natija bo'lmasa, asl query bilan qayta qidiramiz
+            if not results and search_query != query:
+                results = await self._search_youtube(query)
             
             if results:
                 return {
@@ -58,6 +68,11 @@ class MusicSearcher:
             
             videos = []
             for video in raw_results.get('result', []):
+                # Shorts larni filtrlash (ixtiyoriy, lekin asosan 1 min dan kam bo'ladi)
+                # Lekin ba'zi qo'shiqlar qisqa bo'lishi mumkin, shuning uchun faqat Shorts linkini tekshiramiz
+                if 'shorts' in video.get('link', '').lower():
+                    continue
+                    
                 videos.append({
                     "title": video.get('title', 'Nomalum'),
                     "url": video.get('link', ''),

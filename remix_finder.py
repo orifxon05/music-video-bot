@@ -7,12 +7,12 @@ class RemixFinder:
     """YouTube'dan remix va cover topish"""
     
     def __init__(self):
-        self.max_results = 5
+        self.max_results = 8
     
     async def find_remixes(self, title: str, artist: str) -> dict:
         """Remix versiyalarini topish"""
         try:
-            search_query = f"{title} {artist} remix"
+            search_query = f"{title} {artist} remix audio"
             results = await self._search_youtube(search_query)
             
             return {
@@ -27,7 +27,7 @@ class RemixFinder:
     async def find_covers(self, title: str, artist: str) -> dict:
         """Cover versiyalarini topish"""
         try:
-            search_query = f"{title} {artist} cover"
+            search_query = f"{title} {artist} cover audio"
             results = await self._search_youtube(search_query)
             
             return {
@@ -80,6 +80,9 @@ class RemixFinder:
             
             videos = []
             for video in raw_results.get('result', []):
+                if 'shorts' in video.get('link', '').lower():
+                    continue
+                
                 videos.append({
                     "title": video.get('title', 'Noma\'lum'),
                     "url": video.get('link', ''),
