@@ -65,19 +65,31 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from config import ADMIN_ID
     
     user_id = update.effective_user.id
-    if user_id != ADMIN_ID:
-        # Oddiy foydalanuvchilar uchun hech narsa ko'rsatmaymiz yoki xato beramiz
+    # Ham config'dagi, ham hardcoded ID ni tekshiramiz (ishonch uchun)
+    if user_id != ADMIN_ID and user_id != 7693191223:
         return
 
-    # Oddiy statistika
-    downloads_count = len(os.listdir(DOWNLOAD_PATH)) if os.path.exists(DOWNLOAD_PATH) else 0
+    # Statistika ma'lumotlarini yig'ish
+    files_count = 0
+    if os.path.exists(DOWNLOAD_PATH):
+        files_count = len([f for f in os.listdir(DOWNLOAD_PATH) if os.path.isfile(os.path.join(DOWNLOAD_PATH, f))])
+    
+    # Keshdagi fayllar soni
+    from cache import cache
+    cached_audio = len(cache.cache.get("audio", {}))
+    cached_video = len(cache.cache.get("video", {}))
     
     text = f"""📊 **Bot Statistikasi (Admin)**
 
-📥 Yuklab olingan fayllar: {downloads_count}
-👥 Faol foydalanuvchilar: {len(user_music_data)}
+👥 Hozirgi sessiyadagi foydalanuvchilar: {len(user_music_data)}
+📥 Papkadagi fayllar: {files_count}
 
-🤖 Bot ishlayapti!"""
+⚡ **Kesh statistikasi:**
+🎵 Audio kesh: {cached_audio}
+🎬 Video kesh: {cached_video}
+
+🤖 Bot holati: Faol ✅
+👤 Sizning ID: `{user_id}`"""
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
