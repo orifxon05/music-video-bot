@@ -27,7 +27,7 @@ DOWNLOAD_PATH = "downloads"
 
 # Instagram sozlamalari (login yoki cookies kerak)
 # 1-usul: Cookie fayli (eng yaxshi) - Browser'dan cookie eksport qiling
-INSTAGRAM_COOKIES_FILE = os.getenv("INSTAGRAM_COOKIES_FILE", "instagram_cookies.txt")
+INSTAGRAM_COOKIES_FILE = os.getenv("INSTAGRAM_COOKIES_FILE", "www.instagram.com_cookies.txt")
 
 # 2-usul: Login ma'lumotlari (kamroq tavsiya etiladi)
 INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "")
