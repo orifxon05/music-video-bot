@@ -56,12 +56,20 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     not_subscribed = []
     for channel in channels:
         try:
-            member = await context.bot.get_chat_member(chat_id=channel['id'], user_id=user_id)
+            # Kanal ID si to'g'riligini tekshirish (faqat raqam yoki @ bilan boshlanishi kerak)
+            chat_id = channel['id']
+            if isinstance(chat_id, str) and not chat_id.startswith('-') and not chat_id.startswith('@'):
+                # Agar ID noto'g'ri kiritilgan bo'lsa (masalan -100 tushib qolgan bo'lsa)
+                logger.warning(f"Noto'g'ri kanal ID: {chat_id}")
+                continue
+
+            member = await context.bot.get_chat_member(chat_id=chat_id, user_id=user_id)
             if member.status in ['left', 'kicked']:
                 not_subscribed.append(channel)
         except Exception as e:
             logger.error(f"Subscription check error for {channel['id']}: {e}")
-            # Agar bot kanal admini bo'lmasa yoki boshqa xato bo'lsa, o'tkazib yuboramiz
+            # Agar bot kanal admini bo'lmasa, member statusini tekshira olmaydi
+            # Bunday holatda kanalni ro'yxatdan o'tkazib yuboramiz (foydalanuvchini bloklamaslik uchun)
             continue
             
     if not_subscribed:
@@ -73,10 +81,13 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         msg_text = "❌ **Botdan foydalanish uchun kanallarga a'zo bo'ling!**\n\nBu hamma uchun manfaatli bo'ladi deb o'ylayman. Qisqa vaqt ichida foydali narsalar ulashamiz! 👇"
         
-        if update.callback_query:
-            await update.callback_query.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-        else:
-            await update.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+        try:
+            if update.callback_query:
+                await update.callback_query.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+            else:
+                await update.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+        except Exception as e:
+            logger.error(f"Error sending subscription message: {e}")
         return False
         
     return True
@@ -571,7 +582,11 @@ Yuklab olish uchun birini tanlang 👇"""
     
     elif data == "check_sub":
         if await check_subscription(update, context):
-            await query.message.reply_text("✅ Rahmat! Endi botdan foydalanishingiz mumkin.")
+            try:
+                await query.message.delete()
+            except:
+                pass
+            await query.message.reply_text("✅ Rahmat! Hamma kanallarga a'zo bo'ldingiz. Endi botdan foydalanishingiz mumkin.")
             await start_command(update, context)
         else:
             await query.answer("❌ Hali ham hamma kanallarga a'zo emassiz!", show_alert=True)
