@@ -8,7 +8,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Admin ID
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+ADMIN_ID = int(os.getenv("ADMIN_ID", "7693191223"))
 
 # Supported platforms
 SUPPORTED_PLATFORMS = {

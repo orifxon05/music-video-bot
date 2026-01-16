@@ -61,11 +61,18 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Statistika buyrug'i"""
+    """Statistika buyrug'i - Faqat admin uchun"""
+    from config import ADMIN_ID
+    
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        # Oddiy foydalanuvchilar uchun hech narsa ko'rsatmaymiz yoki xato beramiz
+        return
+
     # Oddiy statistika
     downloads_count = len(os.listdir(DOWNLOAD_PATH)) if os.path.exists(DOWNLOAD_PATH) else 0
     
-    text = f"""📊 **Bot Statistikasi**
+    text = f"""📊 **Bot Statistikasi (Admin)**
 
 📥 Yuklab olingan fayllar: {downloads_count}
 👥 Faol foydalanuvchilar: {len(user_music_data)}

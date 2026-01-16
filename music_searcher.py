@@ -68,11 +68,6 @@ class MusicSearcher:
             
             videos = []
             for video in raw_results.get('result', []):
-                # Shorts larni filtrlash (ixtiyoriy, lekin asosan 1 min dan kam bo'ladi)
-                # Lekin ba'zi qo'shiqlar qisqa bo'lishi mumkin, shuning uchun faqat Shorts linkini tekshiramiz
-                if 'shorts' in video.get('link', '').lower():
-                    continue
-                    
                 videos.append({
                     "title": video.get('title', 'Nomalum'),
                     "url": video.get('link', ''),

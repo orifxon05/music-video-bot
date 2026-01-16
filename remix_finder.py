@@ -80,9 +80,6 @@ class RemixFinder:
             
             videos = []
             for video in raw_results.get('result', []):
-                if 'shorts' in video.get('link', '').lower():
-                    continue
-                
                 videos.append({
                     "title": video.get('title', 'Noma\'lum'),
                     "url": video.get('link', ''),
