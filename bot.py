@@ -206,11 +206,15 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                     ]
                 ])
             )
+            # Ma'lumotlarni saqlash
+            if user_id not in user_music_data:
+                user_music_data[user_id] = {}
+            user_music_data[user_id].update({
+                "url": url,
+                "title": "Video",
+                "artist": ""
+            })
             await status_msg.delete()
-            # Fondagi audio uchun keshni yangilab qo'yamiz
-            cached_audio_id = cache.get_audio(url)
-            if cached_audio_id:
-                 user_music_data[user_id] = {"title": "Audio", "artist": "", "file_id": cached_audio_id}
             return
         except Exception as e:
             logger.warning(f"Keshdan yuborishda xato: {e}")
@@ -262,6 +266,14 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                             parse_mode=ParseMode.MARKDOWN,
                             reply_markup=reply_markup,
                         )
+                        # Ma'lumotlarni saqlash
+                        if user_id not in user_music_data:
+                            user_music_data[user_id] = {}
+                        user_music_data[user_id].update({
+                            "url": url,
+                            "title": video_title,
+                            "artist": uploader
+                        })
                         # Keshga saqlash
                         if sent_video.video:
                             cache.save_video(url, sent_video.video.file_id, video_title)
@@ -288,7 +300,9 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                         ]
                     ])
                 )
-                user_music_data[user_id] = {"url": url, "title": video_result.get('title', 'Audio')}
+                if user_id not in user_music_data:
+                    user_music_data[user_id] = {}
+                user_music_data[user_id].update({"url": url, "title": video_result.get('title', 'Audio')})
                 await status_msg.delete()
                 return
 
@@ -299,12 +313,14 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                 audio_path = audio_result["filepath"]
                 video_title = video_result.get('title', 'Audio') if video_result.get('success') else 'Audio'
                 
-                user_music_data[user_id] = {
+                if user_id not in user_music_data:
+                    user_music_data[user_id] = {}
+                user_music_data[user_id].update({
                     "title": video_title,
                     "artist": "",
                     "audio_path": audio_path,
                     "url": url
-                }
+                })
                 
                 keyboard = [
                     [
@@ -403,17 +419,22 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if result.get("success"):
             # Ma'lumotlarni saqlash
-            user_music_data[user_id] = {
+            if user_id not in user_music_data:
+                user_music_data[user_id] = {}
+            user_music_data[user_id].update({
                 "title": result["title"],
                 "artist": result["artist"],
                 "audio_path": file_path,
-            }
+            })
             
             # Natijani yuborish
             text = recognizer.format_result(result)
             
             keyboard = [
-                [InlineKeyboardButton("🔄 Remix/Cover topish", callback_data=f"remix_{user_id}")]
+                [
+                    InlineKeyboardButton("🔄 Remix/Cover topish", callback_data=f"remix_{user_id}"),
+                    InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -506,7 +527,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             title = music_data.get("title", "")
             artist = music_data.get("artist", "")
             
-            if title and artist:
+            if title:
                 await query.message.reply_text(MESSAGES["finding_remixes"])
                 await context.bot.send_chat_action(query.message.chat_id, ChatAction.TYPING)
                 
@@ -574,8 +595,21 @@ Yuklab olish uchun birini tanlang 👇"""
                                     audio=cached_audio_id,
                                     title=item.get("title", "Remix"),
                                     performer=item.get("channel", ""),
-                                    caption=f"🎧 **{item.get('title', 'Remix')}**\n⚡ Keshdan (Tezkor)"
+                                    caption=f"🎧 **{item.get('title', 'Remix')}**\n⚡ Keshdan (Tezkor)",
+                                    reply_markup=InlineKeyboardMarkup([
+                                        [
+                                            InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                                            InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
+                                        ]
+                                    ])
                                 )
+                                if user_id not in user_music_data:
+                                    user_music_data[user_id] = {}
+                                user_music_data[user_id].update({
+                                    "url": url, 
+                                    "title": item.get("title", "Remix"),
+                                    "artist": item.get("channel", "")
+                                })
                                 return
 
                             await query.message.reply_text("📥 Remix yuklanmoqda... ⚡")
@@ -595,10 +629,17 @@ Yuklab olish uchun birini tanlang 👇"""
                                         reply_markup=InlineKeyboardMarkup([
                                             [
                                                 InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                                                InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
                                             ]
                                         ])
                                     )
-                                    user_music_data[user_id] = {"url": url, "title": item.get("title", "Remix")}
+                                    if user_id not in user_music_data:
+                                        user_music_data[user_id] = {}
+                                    user_music_data[user_id].update({
+                                        "url": url, 
+                                        "title": item.get("title", "Remix"),
+                                        "artist": item.get("channel", "")
+                                    })
                                     # Keshga saqlash
                                     if sent_audio.audio:
                                         cache.save_audio(url, sent_audio.audio.file_id, item.get("title", ""))
@@ -618,15 +659,31 @@ Yuklab olish uchun birini tanlang 👇"""
 
     elif data.startswith("vid_"):
         # Videoni yuklab berish
-        if user_id in user_music_data and ("url" in user_music_data[user_id] or "audio_path" in user_music_data[user_id]):
-            # Agar URL bo'lsa uni ishlatamiz, bo'lmasa qidiruv natijasidan url ni olamiz
+        await query.message.reply_text("📥 Video qidirilmoqda/yuklanmoqda... ⚡")
+        
+        url = None
+        if user_id in user_music_data:
             url = user_music_data[user_id].get("url")
-            if url:
-                await handle_link(update, context, url)
+            
+        if url:
+            # Agar URL bo'lsa to'g'ridan-to'g'ri yuklash
+            await handle_link(update, context, url)
+        elif user_id in user_music_data:
+            # URL yo'q (masalan Shazam natijasi), nomi bilan qidirish
+            music_data = user_music_data[user_id]
+            search_query = f"{music_data.get('title', '')} {music_data.get('artist', '')}".strip()
+            
+            if search_query:
+                results = await searcher.search_by_name(search_query)
+                if results.get("success") and results.get("results"):
+                    best_url = results["results"][0]["url"]
+                    await handle_link(update, context, best_url)
+                else:
+                    await query.message.reply_text("😔 Video topilmadi")
             else:
-                await query.message.reply_text("❌ Video havolasi topilmadi.")
+                await query.message.reply_text("❌ Musiqa ma'lumotlari yetarli emas")
         else:
-            await query.message.reply_text("❌ Avval musiqa toping.")
+            await query.message.reply_text("❌ Avval musiqa toping")
 
     elif data == "check_sub":
         if await check_subscription(update, context):
@@ -715,15 +772,17 @@ Yuklab olish uchun birini tanlang 👇"""
                                     audio=cached_file_id,
                                     title=item.get("title", "Audio"),
                                     performer=item.get("channel", ""),
-                                    caption=f"🎵 {item.get('title', 'Audio')}\n⚡ Keshdan",
+                                    caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}\n⚡ Keshdan (Tezkor)",
                                     reply_markup=InlineKeyboardMarkup([
                                         [
-                                            InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
                                             InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                                            InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
                                         ]
                                     ])
                                 )
-                                user_music_data[user_id] = {"url": url, "title": item.get("title", "Audio")}
+                                if user_id not in user_music_data:
+                                    user_music_data[user_id] = {}
+                                user_music_data[user_id].update({"url": url, "title": item.get("title", "Audio")})
                             else:
                                 await query.message.reply_text(MESSAGES["downloading"])
                                 audio_result = await downloader.download_audio(url, user_id)
@@ -742,7 +801,9 @@ Yuklab olish uchun birini tanlang 👇"""
                                                 ]
                                             ])
                                         )
-                                    user_music_data[user_id] = {"url": url, "title": item.get("title", "Audio")}
+                                    if user_id not in user_music_data:
+                                        user_music_data[user_id] = {}
+                                    user_music_data[user_id].update({"url": url, "title": item.get("title", "Audio")})
                                     if sent_msg.audio:
                                         cache.save_audio(url, sent_msg.audio.file_id, item.get("title", ""))
                                     downloader.cleanup_file(audio_path)
@@ -765,8 +826,14 @@ async def broadcast_task(update: Update, context: ContextTypes.DEFAULT_TYPE, tex
 
     for user_id in users:
         try:
-            # HTML mode is safer for links with underscores
-            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+            # HTML yoki Markdown rejimidagi xatolar xabarni bormasligiga sabab bo'lishi mumkin
+            # Shuning uchun matnni qat'iy tekshiramiz yoki parse_mode'siz yuboramiz
+            try:
+                await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+            except Exception:
+                # Agar HTML xato bersa, oddiy matn sifatida yuboramiz
+                await context.bot.send_message(chat_id=user_id, text=text)
+            
             count += 1
             if count % 20 == 0:
                 await msg.edit_text(f"⏳ Jarayon: {count}/{len(users)} yuborildi...")
