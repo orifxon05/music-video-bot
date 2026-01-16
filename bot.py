@@ -150,7 +150,10 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🤖 Bot holati: Faol ✅"""
     
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+    if update.message:
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+    elif update.callback_query:
+        await update.callback_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str = None):
