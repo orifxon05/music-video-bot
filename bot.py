@@ -714,13 +714,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Admin inputlarini tekshirish (Broadcast yoki Kanal qo'shish uchun)
     from config import ADMIN_ID
-    if user_id == ADMIN_ID or user_id == 7693191223:
+    is_admin = (user_id == ADMIN_ID or user_id == 7693191223)
+    
+    if is_admin:
         state = context.user_data.get("admin_state")
+        
+        # State bo'lsa yoki format to'g'ri kelsa (state'siz ham)
         if state == "broadcast":
             context.user_data["admin_state"] = None
             asyncio.create_task(broadcast_task(update, context, text))
             return
-        elif state == "add_channel":
+        elif state == "add_channel" or ("|" in text and len(text.split("|")) == 3):
             context.user_data["admin_state"] = None
             await add_channel_task(update, context, text)
             return
@@ -733,8 +737,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     urls = re.findall(url_pattern, text)
     
     if urls:
-        # URL topildi, link handler'ga yuborish
-        await handle_link(update, context, urls[0])
+        # Telegram link bo'lsa va admin bo'lsa, uni link deb hisoblamaslik (agar format | bo'lsa yuqorida ushlanadi)
+        if "t.me" in urls[0] and is_admin and "|" not in text:
+             # Shunchaki oddiy matn sifatida qoldiramiz (masalan qidiruv bo'lishi mumkin)
+             pass
+        else:
+             # URL topildi, link handler'ga yuborish
+             await handle_link(update, context, urls[0])
+             return
     elif len(text) >= 2:
         # Qo'shiq nomi bilan qidirish
         status_msg = await update.message.reply_text(MESSAGES["searching"])
