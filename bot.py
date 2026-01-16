@@ -20,6 +20,7 @@ from music_recognizer import MusicRecognizer
 from remix_finder import RemixFinder
 from music_searcher import MusicSearcher
 from cache import cache
+from database import db
 
 # Logging sozlamalari
 logging.basicConfig(
@@ -39,11 +40,57 @@ user_music_data = {}
 user_search_data = {}  # Qidiruv natijalari
 user_url_data = {}  # URL va user_id bog'liqligi
 
+async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Kanalga a'zolikni tekshirish"""
+    from config import ADMIN_ID
+    user_id = update.effective_user.id
+    
+    # Adminga doim ruxsat
+    if user_id == ADMIN_ID or user_id == 7693191223:
+        return True
+        
+    channels = db.get_channels()
+    if not channels:
+        return True
+        
+    not_subscribed = []
+    for channel in channels:
+        try:
+            member = await context.bot.get_chat_member(chat_id=channel['id'], user_id=user_id)
+            if member.status in ['left', 'kicked']:
+                not_subscribed.append(channel)
+        except Exception as e:
+            logger.error(f"Subscription check error for {channel['id']}: {e}")
+            # Agar bot kanal admini bo'lmasa yoki boshqa xato bo'lsa, o'tkazib yuboramiz
+            continue
+            
+    if not_subscribed:
+        keyboard = []
+        for ch in not_subscribed:
+            keyboard.append([InlineKeyboardButton(f"➕ {ch['name']}", url=ch['url'])])
+        
+        keyboard.append([InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")])
+        
+        msg_text = "❌ **Botdan foydalanish uchun kanallarga a'zo bo'ling!**\n\nBu hamma uchun manfaatli bo'ladi deb o'ylayman. Qisqa vaqt ichida foydali narsalar ulashamiz! 👇"
+        
+        if update.callback_query:
+            await update.callback_query.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+        return False
+        
+    return True
 
 # ==================== HANDLERS ====================
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start buyrug'i"""
+    user_id = update.effective_user.id
+    db.add_user(user_id)
+    
+    if not await check_subscription(update, context):
+        return
+        
     await update.message.reply_text(
         MESSAGES["start"],
         parse_mode=ParseMode.MARKDOWN,
@@ -53,43 +100,55 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Help buyrug'i"""
+    if not await check_subscription(update, context):
+        return
     await update.message.reply_text(
         MESSAGES["help"],
         parse_mode=ParseMode.MARKDOWN,
         disable_web_page_preview=True
     )
 
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin menyusi"""
+    from config import ADMIN_ID
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID and user_id != 7693191223:
+        return
+        
+    keyboard = [
+        [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+        [InlineKeyboardButton("📢 Xabar yuborish", callback_data="admin_broadcast")],
+        [InlineKeyboardButton("📢 Kanallar sozlamasi", callback_data="admin_channels")],
+    ]
+    await update.message.reply_text("👨‍💻 **Admin Panel**\n\nKerakli bo'limni tanlang:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Statistika buyrug'i - Faqat admin uchun"""
     from config import ADMIN_ID
-    
     user_id = update.effective_user.id
-    # Ham config'dagi, ham hardcoded ID ni tekshiramiz (ishonch uchun)
     if user_id != ADMIN_ID and user_id != 7693191223:
         return
 
-    # Statistika ma'lumotlarini yig'ish
+    stats = db.get_stats()
     files_count = 0
     if os.path.exists(DOWNLOAD_PATH):
         files_count = len([f for f in os.listdir(DOWNLOAD_PATH) if os.path.isfile(os.path.join(DOWNLOAD_PATH, f))])
     
-    # Keshdagi fayllar soni
     from cache import cache
     cached_audio = len(cache.cache.get("audio", {}))
     cached_video = len(cache.cache.get("video", {}))
     
-    text = f"""📊 **Bot Statistikasi (Admin)**
+    text = f"""📊 **Bot Statistikasi (Baza)**
 
-👥 Hozirgi sessiyadagi foydalanuvchilar: {len(user_music_data)}
+👥 Jami foydalanuvchilar: {stats['total_users']}
 📥 Papkadagi fayllar: {files_count}
+📥 Jami yuklashlar: {stats['total_downloads']}
 
 ⚡ **Kesh statistikasi:**
 🎵 Audio kesh: {cached_audio}
 🎬 Video kesh: {cached_video}
 
-🤖 Bot holati: Faol ✅
-👤 Sizning ID: `{user_id}`"""
+🤖 Bot holati: Faol ✅"""
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
@@ -98,7 +157,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
     """Link yuborilganda"""
     message = update.message
     user_id = message.from_user.id
-    
+    db.add_user(user_id)
+    if not await check_subscription(update, context):
+        return
+        
     # URL ni olish
     if url is None:
         url = message.text.strip()
@@ -107,6 +169,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
     if not downloader.is_supported_url(url):
         await message.reply_text(MESSAGES["unsupported_link"])
         return
+    
+    db.increment_downloads()
     
     # Jarayonni boshlash
     status_msg = await message.reply_text(MESSAGES["downloading"])
@@ -277,19 +341,11 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Audio yuborilganda (Shazam)"""
     message = update.message
-    user_id = message.from_user.id
+    db.add_user(user_id)
+    if not await check_subscription(update, context):
+        return
     
-    # Faylni olish
-    if message.audio:
-        file = message.audio
-        file_name = file.file_name or f"{user_id}_audio.mp3"
-    elif message.voice:
-        file = message.voice
-        file_name = f"{user_id}_voice.ogg"
-    elif message.document and message.document.mime_type and 'audio' in message.document.mime_type:
-        file = message.document
-        file_name = file.file_name or f"{user_id}_document.mp3"
-    else:
+    if not (message.audio or message.voice or (message.document and message.document.mime_type and 'audio' in message.document.mime_type)):
         return
     
     status_msg = await message.reply_text(MESSAGES["recognizing"])
@@ -509,6 +565,67 @@ Yuklab olish uchun birini tanlang 👇"""
             logger.error(f"Remix download error: {e}")
             await query.message.reply_text(MESSAGES["error"])
     
+    elif data == "check_sub":
+        if await check_subscription(update, context):
+            await query.message.reply_text("✅ Rahmat! Endi botdan foydalanishingiz mumkin.")
+            await start_command(update, context)
+        else:
+            await query.answer("❌ Hali ham hamma kanallarga a'zo emassiz!", show_alert=True)
+
+    elif data == "admin_stats":
+        await stats_command(update, context)
+        
+    elif data == "admin_broadcast":
+        context.user_data["admin_state"] = "broadcast"
+        await query.message.reply_text("📣 **Xabar yuborish rejimi yoqildi.**\n\nBarcha foydalanuvchilarga yubormoqchi bo'lgan matningizni yozing (rasm/video hozircha qo'llab-quvvatlanmaydi):")
+        
+    elif data == "admin_channels":
+        channels = db.get_channels()
+        text = "📢 **Majburiy a'zolik kanallari:**\n\n"
+        keyboard = []
+        if not channels:
+            text += "Hozircha hech qanday kanal yo'q."
+        else:
+            for i, ch in enumerate(channels):
+                text += f"{i+1}. {ch['name']} (ID: {ch['id']})\n"
+                keyboard.append([InlineKeyboardButton(f"❌ O'chirish: {ch['name']}", callback_data=f"del_ch_{i}")])
+        
+        keyboard.append([InlineKeyboardButton("➕ Kanal qo'shish", callback_data="add_ch")])
+        keyboard.append([InlineKeyboardButton("🔙 Orqaga", callback_data="admin_menu")])
+        await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+
+    elif data == "admin_menu":
+        from config import ADMIN_ID
+        if user_id == ADMIN_ID or user_id == 7693191223:
+            keyboard = [
+                [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+                [InlineKeyboardButton("📢 Xabar yuborish", callback_data="admin_broadcast")],
+                [InlineKeyboardButton("📢 Kanallar sozlamasi", callback_data="admin_channels")],
+            ]
+            await query.message.edit_text("👨‍💻 **Admin Panel**\n\nKerakli bo'limni tanlang:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+
+    elif data == "add_ch":
+        context.user_data["admin_state"] = "add_channel"
+        await query.message.reply_text("📝 **Kanal qo'shish formatini yuboring:**\n\n`Nomi | ID | URL` \n\nMasalan:\n`Musiqa Kanali | -100123456789 | https://t.me/musiqa_kanali`", parse_mode=ParseMode.MARKDOWN)
+
+    elif data.startswith("del_ch_"):
+        index = int(data.split("_")[-1])
+        db.remove_channel(index)
+        await query.answer("✅ Kanal o'chirildi")
+        # Menyu yangilash
+        channels = db.get_channels()
+        text = "📢 **Majburiy a'zolik kanallari:**\n\n"
+        keyboard = []
+        if not channels:
+            text += "Hozircha hech qanday kanal yo'q."
+        else:
+            for i, ch in enumerate(channels):
+                text += f"{i+1}. {ch['name']} (ID: {ch['id']})\n"
+                keyboard.append([InlineKeyboardButton(f"❌ O'chirish: {ch['name']}", callback_data=f"del_ch_{i}")])
+        keyboard.append([InlineKeyboardButton("➕ Kanal qo'shish", callback_data="add_ch")])
+        keyboard.append([InlineKeyboardButton("🔙 Orqaga", callback_data="admin_menu")])
+        await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+
     elif data.startswith("dl_"):
         # Qidiruv natijasini yuklab olish
         try:
@@ -524,11 +641,9 @@ Yuklab olish uchun birini tanlang 👇"""
                         url = item.get("url", "")
                         
                         if url:
-                            # KESH TEKSHIRISH - oldin yuklangan bo'lsa tezda yuborish
+                            # KESH TEKSHIRISH
                             cached_file_id = cache.get_audio(url)
-                            
                             if cached_file_id:
-                                # KESHDAN - juda tez!
                                 await query.message.reply_audio(
                                     audio=cached_file_id,
                                     title=item.get("title", "Audio"),
@@ -536,14 +651,10 @@ Yuklab olish uchun birini tanlang 👇"""
                                     caption=f"🎵 {item.get('title', 'Audio')}\n⚡ Keshdan"
                                 )
                             else:
-                                # Yangi yuklab olish
                                 await query.message.reply_text(MESSAGES["downloading"])
-                                
                                 audio_result = await downloader.download_audio(url, user_id)
-                                
                                 if audio_result.get("success"):
                                     audio_path = audio_result["filepath"]
-                                    
                                     with open(audio_path, 'rb') as audio_file:
                                         sent_msg = await query.message.reply_audio(
                                             audio=audio_file,
@@ -551,30 +662,67 @@ Yuklab olish uchun birini tanlang 👇"""
                                             performer=item.get("channel", ""),
                                             caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}"
                                         )
-                                    
-                                    # Keshga saqlash
                                     if sent_msg.audio:
                                         cache.save_audio(url, sent_msg.audio.file_id, item.get("title", ""))
-                                    
                                     downloader.cleanup_file(audio_path)
                                 else:
                                     await query.message.reply_text("❌ Yuklab bo'lmadi")
-                        else:
-                            await query.message.reply_text("❌ URL topilmadi")
-                    else:
-                        await query.message.reply_text("❌ Natija topilmadi")
-                else:
-                    await query.message.reply_text("❌ Qaytadan qidiring")
         except Exception as e:
             logger.error(f"Download callback error: {e}")
             await query.message.reply_text(MESSAGES["error"])
+
+async def broadcast_task(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    users = db.get_users()
+    count = 0
+    errors = 0
+    msg = await update.message.reply_text(f"🚀 Xabar yuborish boshlandi: {len(users)} ta foydalanuvchiga...")
+    
+    for user_id in users:
+        try:
+            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.MARKDOWN)
+            count += 1
+            if count % 20 == 0:
+                await msg.edit_text(f"⏳ Jarayon: {count}/{len(users)} yuborildi...")
+        except Exception:
+            errors += 1
+        await asyncio.sleep(0.05) # Flood wait oldini olish
+        
+    await update.message.reply_text(f"✅ **Xabar yuborish tugadi!**\n\n🟢 Muvaffaqiyatli: {count}\n🔴 Xato: {errors}")
+
+async def add_channel_task(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    try:
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) == 3:
+            name, ch_id, url = parts
+            db.add_channel(name, ch_id, url)
+            await update.message.reply_text(f"✅ **Kanal qo'shildi!**\n\nNom: {name}\nID: {ch_id}")
+        else:
+            await update.message.reply_text("❌ Xato format. Iltimos qaytadan urining.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Xatolik: {e}")
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Matn xabarlari"""
     text = update.message.text.strip()
-    user_id = update.message.from_user.id
+    db.add_user(user_id)
     
+    # Admin inputlarini tekshirish (Broadcast yoki Kanal qo'shish uchun)
+    from config import ADMIN_ID
+    if user_id == ADMIN_ID or user_id == 7693191223:
+        state = context.user_data.get("admin_state")
+        if state == "broadcast":
+            context.user_data["admin_state"] = None
+            asyncio.create_task(broadcast_task(update, context, text))
+            return
+        elif state == "add_channel":
+            context.user_data["admin_state"] = None
+            await add_channel_task(update, context, text)
+            return
+
+    if not await check_subscription(update, context):
+        return
+        
     # URL bormi tekshirish
     url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
     urls = re.findall(url_pattern, text)
@@ -669,6 +817,7 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("admin", admin_command))
     
     # Audio handler
     application.add_handler(MessageHandler(
