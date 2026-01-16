@@ -3,7 +3,14 @@ import os
 import asyncio
 import yt_dlp
 from urllib.parse import urlparse
-from config import SUPPORTED_PLATFORMS, DOWNLOAD_PATH, MAX_FILE_SIZE_MB
+from config import (
+    SUPPORTED_PLATFORMS, 
+    DOWNLOAD_PATH, 
+    MAX_FILE_SIZE_MB,
+    INSTAGRAM_COOKIES_FILE,
+    INSTAGRAM_USERNAME,
+    INSTAGRAM_PASSWORD
+)
 
 
 class Downloader:
@@ -30,6 +37,23 @@ class Downloader:
         """URL qo'llab-quvvatlanadimi?"""
         return self.get_platform(url) is not None
     
+    def _get_instagram_opts(self) -> dict:
+        """Instagram uchun maxsus sozlamalar"""
+        opts = {}
+        
+        # 1-usul: Cookie fayli (eng ishonchli)
+        cookies_path = os.path.join(os.path.dirname(__file__), INSTAGRAM_COOKIES_FILE)
+        if os.path.exists(cookies_path):
+            opts['cookiefile'] = cookies_path
+            return opts
+        
+        # 2-usul: Login ma'lumotlari
+        if INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD:
+            opts['username'] = INSTAGRAM_USERNAME
+            opts['password'] = INSTAGRAM_PASSWORD
+        
+        return opts
+    
     async def download_video(self, url: str, user_id: int) -> dict:
         """Video yuklab olish"""
         output_template = os.path.join(
@@ -45,6 +69,12 @@ class Downloader:
             'extract_flat': False,
             'socket_timeout': 30,
         }
+        
+        # Instagram uchun maxsus sozlamalar qo'shish
+        platform = self.get_platform(url)
+        if platform == "instagram":
+            instagram_opts = self._get_instagram_opts()
+            ydl_opts.update(instagram_opts)
         
         try:
             loop = asyncio.get_event_loop()
@@ -72,6 +102,12 @@ class Downloader:
             'socket_timeout': 60,
             'retries': 2,
         }
+        
+        # Instagram uchun maxsus sozlamalar qo'shish
+        platform = self.get_platform(url)
+        if platform == "instagram":
+            instagram_opts = self._get_instagram_opts()
+            ydl_opts.update(instagram_opts)
         
         try:
             loop = asyncio.get_event_loop()
