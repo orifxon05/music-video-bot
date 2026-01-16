@@ -79,10 +79,11 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         keyboard.append([InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")])
         
-        msg_text = "❌ **Botdan foydalanish uchun kanallarga a'zo bo'ling!**\n\nBu hamma uchun manfaatli bo'ladi deb o'ylayman. Qisqa vaqt ichida foydali narsalar ulashamiz! 👇"
+        msg_text = "❌ **Kechirasiz, botimizdan foydalanish uchun ushbu kanallarga obuna bo'lishingiz kerak.**\n\nBu hamma uchun manfaatli bo'ladi deb o'ylayman. Qisqa vaqt ichida foydali narsalar ulashamiz! 👇"
         
         try:
             if update.callback_query:
+                # Callback bo'lsa xabarni o'zgartiramiz yoki yangi yuboramiz
                 await update.callback_query.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
             else:
                 await update.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
@@ -280,8 +281,14 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                     title=video_result.get('title', 'Audio') if video_result.get('success') else 'Audio',
                     performer=video_result.get('uploader', 'Music Bot') if video_result.get('success') else 'Music Bot',
                     caption="🎵 Keshdagi audio yuborildi",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}")]])
+                    reply_markup=InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
+                            InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                        ]
+                    ])
                 )
+                user_music_data[user_id] = {"url": url, "title": video_result.get('title', 'Audio')}
                 await status_msg.delete()
                 return
 
@@ -296,12 +303,16 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                     "title": video_title,
                     "artist": "",
                     "audio_path": audio_path,
+                    "url": url
                 }
                 
                 keyboard = [
                     [
                         InlineKeyboardButton("🎤 Shazam", callback_data=f"shazam_{user_id}"),
                         InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
+                    ],
+                    [
+                        InlineKeyboardButton("🎬 Video yuklash", callback_data=f"vid_{user_id}"),
                     ]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
@@ -561,8 +572,14 @@ Yuklab olish uchun birini tanlang 👇"""
                                         audio=audio_file,
                                         title=item.get("title", "Remix"),
                                         performer=item.get("channel", ""),
-                                        caption=f"🎧 **{item.get('title', 'Remix')}**\n👤 {item.get('channel', '')}"
+                                        caption=f"🎧 **{item.get('title', 'Remix')}**\n👤 {item.get('channel', '')}",
+                                        reply_markup=InlineKeyboardMarkup([
+                                            [
+                                                InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                                            ]
+                                        ])
                                     )
+                                    user_music_data[user_id] = {"url": url, "title": item.get("title", "Remix")}
                                     # Keshga saqlash
                                     if sent_audio.audio:
                                         cache.save_audio(url, sent_audio.audio.file_id, item.get("title", ""))
@@ -579,7 +596,19 @@ Yuklab olish uchun birini tanlang 👇"""
         except Exception as e:
             logger.error(f"Remix download error: {e}")
             await query.message.reply_text(MESSAGES["error"])
-    
+
+    elif data.startswith("vid_"):
+        # Videoni yuklab berish
+        if user_id in user_music_data and ("url" in user_music_data[user_id] or "audio_path" in user_music_data[user_id]):
+            # Agar URL bo'lsa uni ishlatamiz, bo'lmasa qidiruv natijasidan url ni olamiz
+            url = user_music_data[user_id].get("url")
+            if url:
+                await handle_link(update, context, url)
+            else:
+                await query.message.reply_text("❌ Video havolasi topilmadi.")
+        else:
+            await query.message.reply_text("❌ Avval musiqa toping.")
+
     elif data == "check_sub":
         if await check_subscription(update, context):
             try:
@@ -667,8 +696,15 @@ Yuklab olish uchun birini tanlang 👇"""
                                     audio=cached_file_id,
                                     title=item.get("title", "Audio"),
                                     performer=item.get("channel", ""),
-                                    caption=f"🎵 {item.get('title', 'Audio')}\n⚡ Keshdan"
+                                    caption=f"🎵 {item.get('title', 'Audio')}\n⚡ Keshdan",
+                                    reply_markup=InlineKeyboardMarkup([
+                                        [
+                                            InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
+                                            InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                                        ]
+                                    ])
                                 )
+                                user_music_data[user_id] = {"url": url, "title": item.get("title", "Audio")}
                             else:
                                 await query.message.reply_text(MESSAGES["downloading"])
                                 audio_result = await downloader.download_audio(url, user_id)
@@ -679,8 +715,15 @@ Yuklab olish uchun birini tanlang 👇"""
                                             audio=audio_file,
                                             title=item.get("title", "Audio"),
                                             performer=item.get("channel", ""),
-                                            caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}"
+                                            caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}",
+                                            reply_markup=InlineKeyboardMarkup([
+                                                [
+                                                    InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
+                                                    InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
+                                                ]
+                                            ])
                                         )
+                                    user_music_data[user_id] = {"url": url, "title": item.get("title", "Audio")}
                                     if sent_msg.audio:
                                         cache.save_audio(url, sent_msg.audio.file_id, item.get("title", ""))
                                     downloader.cleanup_file(audio_path)
@@ -696,13 +739,19 @@ async def broadcast_task(update: Update, context: ContextTypes.DEFAULT_TYPE, tex
     errors = 0
     msg = await update.message.reply_text(f"🚀 Xabar yuborish boshlandi: {len(users)} ta foydalanuvchiga...")
     
+    logger.info(f"📢 Broadcast started by {update.effective_user.id}. Total users: {len(users)}")
+    if not users:
+        await msg.edit_text("❌ Bazada foydalanuvchilar topilmadi!")
+        return
+
     for user_id in users:
         try:
             await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.MARKDOWN)
             count += 1
             if count % 20 == 0:
                 await msg.edit_text(f"⏳ Jarayon: {count}/{len(users)} yuborildi...")
-        except Exception:
+        except Exception as e:
+            logger.error(f"Broadcast error for {user_id}: {e}")
             errors += 1
         await asyncio.sleep(0.05) # Flood wait oldini olish
         
