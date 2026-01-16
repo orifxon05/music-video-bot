@@ -5,6 +5,24 @@ class Database:
     def __init__(self, db_file="db.json"):
         self.db_file = db_file
         self.data = self._load_data()
+        self._load_env_channels()  # Environment'dan kanallarni yuklash
+
+    def _load_env_channels(self):
+        """Environment variable'dan kanallarni yuklash"""
+        # CHANNELS format: "Kanal1|-1001234567890|https://t.me/kanal1,Kanal2|-1009876543210|https://t.me/kanal2"
+        env_channels = os.getenv("CHANNELS", "")
+        if env_channels and not self.data.get("channels"):
+            channels = []
+            for ch in env_channels.split(","):
+                parts = ch.strip().split("|")
+                if len(parts) == 3:
+                    channels.append({
+                        "name": parts[0].strip(),
+                        "id": parts[1].strip(),
+                        "url": parts[2].strip()
+                    })
+            if channels:
+                self.data["channels"] = channels
 
     def _load_data(self):
         if os.path.exists(self.db_file):

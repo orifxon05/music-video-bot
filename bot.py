@@ -75,18 +75,18 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not_subscribed:
         keyboard = []
         for ch in not_subscribed:
-            keyboard.append([InlineKeyboardButton(f"➕ {ch['name']}", url=ch['url'])])
+            # "Obuna bo'lish" tugmasi
+            keyboard.append([InlineKeyboardButton(f"➕ Obuna bo'lish", url=ch['url'])])
         
         keyboard.append([InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")])
         
-        msg_text = "❌ **Kechirasiz, botimizdan foydalanish uchun ushbu kanallarga obuna bo'lishingiz kerak.**\n\nBu hamma uchun manfaatli bo'ladi deb o'ylayman. Qisqa vaqt ichida foydali narsalar ulashamiz! 👇"
+        msg_text = "❌ Kechirasiz, botimizdan foydalanish uchun ushbu kanallarga obuna bo'lishingiz kerak."
         
         try:
             if update.callback_query:
-                # Callback bo'lsa xabarni o'zgartiramiz yoki yangi yuboramiz
-                await update.callback_query.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+                await update.callback_query.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard))
             else:
-                await update.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception as e:
             logger.error(f"Error sending subscription message: {e}")
         return False
