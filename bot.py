@@ -585,7 +585,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Inline keyboard yaratish
                 keyboard = []
-                for i, item in enumerate(results.get("results", [])[:8]):
+                for i, item in enumerate(results.get("results", [])[:10]):
                     title = item.get("title", "")[:40]
                     duration = item.get("duration", "")
                     btn_text = f"🎵 {title}... ({duration})"

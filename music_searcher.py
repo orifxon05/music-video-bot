@@ -7,30 +7,21 @@ class MusicSearcher:
     """Qo'shiq nomi bo'yicha qidirish"""
     
     def __init__(self):
-        self.max_results = 10
+        self.max_results = 15  # Ko'proq natija olamiz
     
     async def search_by_name(self, query: str) -> dict:
         """Qo'shiq nomini qidirish"""
         try:
-            # Query ni tozalash
             query = query.strip()
             if not query:
                 return {"success": False, "error": "Bo'sh qidiruv"}
             
-            # Agar queryda musiqa bilan bog'liq so'zlar bo'lmasa, "audio" qo'shamiz
-            search_query = query
-            music_keywords = ['audio', 'song', 'mp3', 'music', 'qo\'shiq', 'remix', 'fm']
-            if not any(word in query.lower() for word in music_keywords):
-                search_query = f"{query} audio"
-            
-            # YouTube'da qidirish
-            results = await self._search_youtube(search_query)
-            
-            # Agar natija bo'lmasa, asl query bilan qayta qidiramiz
-            if not results and search_query != query:
-                results = await self._search_youtube(query)
+            # YouTube'da qidirish - qo'shimchalarsiz, YouTube o'zi aqlli
+            print(f"DEBUG: Searching YouTube for: {query}")
+            results = await self._search_youtube(query)
             
             if results:
+                print(f"DEBUG: Found {len(results)} results")
                 return {
                     "success": True,
                     "query": query,
@@ -38,9 +29,11 @@ class MusicSearcher:
                     "count": len(results),
                 }
             else:
+                print(f"DEBUG: No results found for: {query}")
                 return {"success": False, "error": "Hech narsa topilmadi"}
                 
         except Exception as e:
+            print(f"DEBUG: Search error: {e}")
             return {"success": False, "error": str(e)}
     
     async def search_song(self, title: str, artist: str = "") -> dict:
