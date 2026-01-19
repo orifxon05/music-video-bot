@@ -709,7 +709,10 @@ Yuklab olish uchun birini tanlang 👇"""
                 if title:
                     search_query = f"{title} {artist}".strip()
                     await query.message.reply_text(f"📥 Qo'shiq yuklanmoqda...\n🔍 {search_query}")
-                    await context.bot.send_chat_action(query.message.chat_id, ChatAction.UPLOAD_AUDIO)
+                    try:
+                        await context.bot.send_chat_action(query.message.chat_id, "upload_document")
+                    except:
+                        pass
                     
                     # YouTube'dan qidirish
                     results = await searcher.search_by_name(search_query)
