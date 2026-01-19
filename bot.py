@@ -647,7 +647,8 @@ Yuklab olish uchun birini tanlang 👇"""
                                 
                                 downloader.cleanup_file(audio_path)
                             else:
-                                await query.message.reply_text("❌ Yuklab bo'lmadi")
+                                error_msg = audio_result.get('error', "Yuklab bo'lmadi")
+                                await query.message.reply_text(f"❌ {error_msg}")
                         else:
                             await query.message.reply_text("❌ URL topilmadi")
                     else:
@@ -699,59 +700,64 @@ Yuklab olish uchun birini tanlang 👇"""
 
     elif data.startswith("dlsong_"):
         # Shazam topgan qo'shiqni YouTube'dan qidirib yuklab berish
-        if user_id in user_music_data:
-            music_data = user_music_data[user_id]
-            title = music_data.get("title", "")
-            artist = music_data.get("artist", "")
-            
-            if title:
-                search_query = f"{title} {artist}".strip()
-                await query.message.reply_text(f"📥 Qo'shiq yuklanmoqda...\n🔍 {search_query}")
-                await context.bot.send_chat_action(query.message.chat_id, ChatAction.UPLOAD_AUDIO)
+        try:
+            if user_id in user_music_data:
+                music_data = user_music_data[user_id]
+                title = music_data.get("title", "")
+                artist = music_data.get("artist", "")
                 
-                # YouTube'dan qidirish
-                results = await searcher.search_by_name(search_query)
-                
-                if results.get("success") and results.get("results"):
-                    best_url = results["results"][0]["url"]
+                if title:
+                    search_query = f"{title} {artist}".strip()
+                    await query.message.reply_text(f"📥 Qo'shiq yuklanmoqda...\n🔍 {search_query}")
+                    await context.bot.send_chat_action(query.message.chat_id, ChatAction.UPLOAD_AUDIO)
                     
-                    # Keshda bormi tekshirish
-                    cached_audio = cache.get_audio(best_url)
-                    if cached_audio:
-                        await query.message.reply_audio(
-                            audio=cached_audio,
-                            title=title,
-                            performer=artist,
-                            caption=f"🎵 {title}\n👤 {artist}\n⚡ Keshdan yuborildi"
-                        )
-                        return
+                    # YouTube'dan qidirish
+                    results = await searcher.search_by_name(search_query)
                     
-                    # Audio yuklab olish
-                    audio_result = await downloader.download_audio(best_url, user_id)
-                    
-                    if audio_result.get("success"):
-                        audio_path = audio_result["filepath"]
+                    if results.get("success") and results.get("results"):
+                        best_url = results["results"][0]["url"]
                         
-                        with open(audio_path, 'rb') as audio_file:
-                            sent = await query.message.reply_audio(
-                                audio=audio_file,
+                        # Keshda bormi tekshirish
+                        cached_audio = cache.get_audio(best_url)
+                        if cached_audio:
+                            await query.message.reply_audio(
+                                audio=cached_audio,
                                 title=title,
                                 performer=artist,
-                                caption=f"🎵 {title}\n👤 {artist}"
+                                caption=f"🎵 {title}\n👤 {artist}\n⚡ Keshdan yuborildi"
                             )
-                            # Keshga saqlash
-                            if sent.audio:
-                                cache.save_audio(best_url, sent.audio.file_id, title)
+                            return
                         
-                        downloader.cleanup_file(audio_path)
+                        # Audio yuklab olish
+                        audio_result = await downloader.download_audio(best_url, user_id)
+                        
+                        if audio_result.get("success"):
+                            audio_path = audio_result["filepath"]
+                            
+                            with open(audio_path, 'rb') as audio_file:
+                                sent = await query.message.reply_audio(
+                                    audio=audio_file,
+                                    title=title,
+                                    performer=artist,
+                                    caption=f"🎵 {title}\n👤 {artist}"
+                                )
+                                # Keshga saqlash
+                                if sent.audio:
+                                    cache.save_audio(best_url, sent.audio.file_id, title)
+                            
+                            downloader.cleanup_file(audio_path)
+                        else:
+                            error_msg = audio_result.get('error', "Qo'shiq yuklab bo'lmadi")
+                            await query.message.reply_text(f"❌ {error_msg}")
                     else:
-                        await query.message.reply_text("❌ Qo'shiq yuklab bo'lmadi. Qayta urinib ko'ring.")
+                        await query.message.reply_text("😔 YouTube'da xatolik yoki topilmadi")
                 else:
-                    await query.message.reply_text("😔 Qo'shiq topilmadi")
+                    await query.message.reply_text("❌ Qo'shiq ma'lumotlari keshdan o'chgan")
             else:
-                await query.message.reply_text("❌ Qo'shiq nomi topilmadi")
-        else:
-            await query.message.reply_text("❌ Avval Shazam orqali qo'shiq toping")
+                await query.message.reply_text("❌ Avval Shazam orqali qo'shiq toping")
+        except Exception as e:
+            logger.error(f"dlsong error: {e}")
+            await query.message.reply_text("❌ Kutilmagan xatolik yuz berdi")
 
     elif data == "admin_stats":
         await stats_command(update, context)
@@ -865,7 +871,8 @@ Yuklab olish uchun birini tanlang 👇"""
                                         cache.save_audio(url, sent_msg.audio.file_id, item.get("title", ""))
                                     downloader.cleanup_file(audio_path)
                                 else:
-                                    await query.message.reply_text("❌ Yuklab bo'lmadi")
+                                    error_msg = audio_result.get('error', "Yuklab bo'lmadi")
+                                    await query.message.reply_text(f"❌ {error_msg}")
         except Exception as e:
             logger.error(f"Download callback error: {e}")
             await query.message.reply_text(MESSAGES["error"])

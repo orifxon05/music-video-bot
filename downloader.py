@@ -131,13 +131,22 @@ class Downloader:
                 # Fayl yo'lini topish
                 filepath = None
                 
+                # 1. requested_downloads dan (eng ishonchli)
                 if 'requested_downloads' in info and info['requested_downloads']:
                     filepath = info['requested_downloads'][0].get('filepath')
                 
+                # 2. prepare_filename dan
                 if not filepath:
-                    # Template dan yaratish
+                    try:
+                        filepath = ydl.prepare_filename(info)
+                    except:
+                        pass
+                
+                # 3. outtmpl dan taxmin qilish
+                if not filepath:
                     video_id = info.get('id', 'unknown')
                     ext = info.get('ext', 'm4a')
+                    # ext bo'lmasligi mumkin agar merge bo'lsa
                     filepath = ydl_opts['outtmpl'] % {'id': video_id, 'ext': ext}
                 
                 # Fayl mavjudligini tekshirish
@@ -150,22 +159,23 @@ class Downloader:
                         "uploader": info.get('uploader', ''),
                     }
                 
-                # Downloads papkasidan qidirish
+                # 4. Downloads papkasidan qidirish (oxirgi chora)
                 video_id = info.get('id', '')
                 if video_id:
                     for filename in os.listdir(self.download_path):
                         if video_id in filename:
-                            filepath = os.path.join(self.download_path, filename)
-                            if os.path.exists(filepath):
+                            fpath = os.path.join(self.download_path, filename)
+                            # Fayl bo'sh emasligini tekshirish
+                            if os.path.exists(fpath) and os.path.getsize(fpath) > 0:
                                 return {
                                     "success": True,
-                                    "filepath": filepath,
+                                    "filepath": fpath,
                                     "title": info.get('title', 'Audio'),
                                     "duration": info.get('duration', 0),
                                     "uploader": info.get('uploader', ''),
                                 }
                 
-                return {"success": False, "error": "Fayl topilmadi"}
+                return {"success": False, "error": "Fayl yuklandi lekin topilmadi"}
                     
         except Exception as e:
             return {"success": False, "error": f"Xatolik: {str(e)[:100]}"}
