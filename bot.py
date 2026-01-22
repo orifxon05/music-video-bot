@@ -1075,8 +1075,7 @@ def main():
     # Audio handler
     # Audio/Video handler
     application.add_handler(MessageHandler(
-        filters.AUDIO | filters.VOICE | filters.VIDEO | filters.VIDEO_NOTE | 
-        (filters.Document.AUDIO | filters.Document.VIDEO),
+        filters.AUDIO | filters.VOICE | filters.VIDEO | filters.VIDEO_NOTE | filters.Document.ALL,
         handle_audio
     ))
     
