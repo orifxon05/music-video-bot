@@ -168,8 +168,8 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str = None):
     """Link yuborilganda"""
-    message = update.message
-    user_id = message.from_user.id
+    message = update.effective_message
+    user_id = update.effective_user.id
     db.add_user(user_id)
     if not await check_subscription(update, context):
         return
@@ -187,7 +187,10 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
     
     # Jarayonni boshlash
     status_msg = await message.reply_text(MESSAGES["downloading"])
-    await context.bot.send_chat_action(message.chat_id, ChatAction.UPLOAD_VIDEO)
+    try:
+        await context.bot.send_chat_action(message.chat_id, "upload_video")
+    except:
+        pass
     
     # KESH TEKSHIRISH - Video uchun
     cached_video_id = cache.get_video(url)
@@ -261,7 +264,6 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                         sent_video = await message.reply_video(
                             video=video_file,
                             caption=caption,
-                            parse_mode=ParseMode.MARKDOWN,
                             reply_markup=reply_markup,
                         )
                         # Ma'lumotlarni saqlash
