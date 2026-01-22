@@ -387,31 +387,49 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_subscription(update, context):
         return
     
-    if not (message.audio or message.voice or (message.document and message.document.mime_type and 'audio' in message.document.mime_type)):
-        return
-    
     try:
-        # Faylni olish
+        # Fayl turini aniqlash
+        file_id = None
+        file_name = None
+        
         if message.audio:
-            file = message.audio
-            file_name = file.file_name or f"{user_id}_audio.mp3"
+            file_id = message.audio.file_id
+            file_name = message.audio.file_name or f"{user_id}_audio.mp3"
         elif message.voice:
-            file = message.voice
+            file_id = message.voice.file_id
             file_name = f"{user_id}_voice.ogg"
-        elif message.document and message.document.mime_type and 'audio' in message.document.mime_type:
-            file = message.document
-            file_name = file.file_name or f"{user_id}_document.mp3"
+        elif message.video:
+            if message.video.file_size > 20 * 1024 * 1024:
+                await message.reply_text("❌ Video juda katta. 20MB dan kichik video yuboring.")
+                return
+            file_id = message.video.file_id
+            file_name = message.video.file_name or f"{user_id}_video.mp4"
+        elif message.video_note:
+            file_id = message.video_note.file_id
+            file_name = f"{user_id}_videonote.mp4"
+        elif message.document:
+            if message.document.mime_type and ('audio' in message.document.mime_type or 'video' in message.document.mime_type):
+                if message.document.file_size > 20 * 1024 * 1024:
+                    await message.reply_text("❌ Fayl juda katta. 20MB dan kichik bo'lishi kerak.")
+                    return
+                file_id = message.document.file_id
+                file_name = message.document.file_name or f"{user_id}_doc"
+            else:
+                return
         else:
             return
 
         status_msg = await message.reply_text(MESSAGES["recognizing"])
-        await context.bot.send_chat_action(message.chat_id, ChatAction.TYPING)
+        try:
+            await context.bot.send_chat_action(message.chat_id, "upload_voice")
+        except:
+            pass
 
         # Faylni yuklab olish
         os.makedirs(DOWNLOAD_PATH, exist_ok=True)
         file_path = os.path.join(DOWNLOAD_PATH, file_name)
         
-        telegram_file = await context.bot.get_file(file.file_id)
+        telegram_file = await context.bot.get_file(file_id)
         await telegram_file.download_to_drive(file_path)
         
         # Musiqani aniqlash
@@ -1055,8 +1073,10 @@ def main():
     application.add_handler(CommandHandler("admin", admin_command))
     
     # Audio handler
+    # Audio/Video handler
     application.add_handler(MessageHandler(
-        filters.AUDIO | filters.VOICE | (filters.Document.AUDIO),
+        filters.AUDIO | filters.VOICE | filters.VIDEO | filters.VIDEO_NOTE | 
+        (filters.Document.AUDIO | filters.Document.VIDEO),
         handle_audio
     ))
     
