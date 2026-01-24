@@ -162,4 +162,6 @@ class MusicRecognizer:
         if result.get('shazam_url'):
             text += f"\n• [Shazam]({result['shazam_url']})"
         
+        text += "\n\n👉 @SavemuzikVideoBot"
+        
         return text

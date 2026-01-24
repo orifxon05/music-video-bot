@@ -199,7 +199,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
             await status_msg.edit_text("⚡ Keshdan topildi...")
             await message.reply_video(
                 video=cached_video_id,
-                caption=f"🎬 Video topildi!\n🔗 {url}\n\n⚡ Tezkor yuklash (Keshdan)",
+                caption=f"🎬 Video topildi!\n🔗 {url}\n\n⚡ Tezkor yuklash (Keshdan)\n\n👉 @SavemuzikVideoBot",
                 reply_markup=InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("🎵 Audio olish", callback_data=f"audio_{user_id}"),
@@ -250,7 +250,9 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
 👤 Muallif: {uploader}
 ⏱ Davomiylik: {duration}
 
-🎵 Audio va remix topish uchun quyidagi tugmani bosing 👇"""
+🎵 Audio va remix topish uchun quyidagi tugmani bosing 👇
+
+👉 @SavemuzikVideoBot"""
                     
                     keyboard = [
                         [
@@ -292,7 +294,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                     audio=cached_audio_id,
                     title=video_result.get('title', 'Audio') if video_result.get('success') else 'Audio',
                     performer=video_result.get('uploader', 'Music Bot') if video_result.get('success') else 'Music Bot',
-                    caption="🎵 Keshdagi audio yuborildi",
+                    caption="🎵 Keshdagi audio yuborildi\n\n👉 @SavemuzikVideoBot",
                     reply_markup=InlineKeyboardMarkup([
                         [
                             InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
@@ -339,7 +341,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                         audio=audio_file,
                         title=video_title,
                         performer=performer,
-                        caption="🎵 Audio tayyor!\n\n🎤 Shazam - qo'shiq nomini aniqlash\n🔄 Remix - versiyalarini topish",
+                        caption="🎵 Audio tayyor!\n\n🎤 Shazam - qo'shiq nomini aniqlash\n🔄 Remix - versiyalarini topish\n\n👉 @SavemuzikVideoBot",
                         reply_markup=reply_markup,
                     )
                     # Keshga saqlash
@@ -616,7 +618,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                     audio=cached_audio_id,
                                     title=item.get("title", "Remix"),
                                     performer=item.get("channel", ""),
-                                    caption=f"🎧 **{item.get('title', 'Remix')}**\n⚡ Keshdan (Tezkor)",
+                                    caption=f"🎧 **{item.get('title', 'Remix')}**\n⚡ Keshdan (Tezkor)\n\n👉 @SavemuzikVideoBot",
                                     reply_markup=InlineKeyboardMarkup([
                                         [
                                             InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
@@ -646,7 +648,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                         audio=audio_file,
                                         title=item.get("title", "Remix"),
                                         performer=item.get("channel", ""),
-                                        caption=f"🎧 **{item.get('title', 'Remix')}**\n👤 {item.get('channel', '')}",
+                                        caption=f"🎧 **{item.get('title', 'Remix')}**\n👤 {item.get('channel', '')}\n\n👉 @SavemuzikVideoBot",
                                         reply_markup=InlineKeyboardMarkup([
                                             [
                                                 InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
@@ -747,7 +749,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                 audio=cached_audio,
                                 title=title,
                                 performer=artist,
-                                caption=f"🎵 {title}\n👤 {artist}\n⚡ Keshdan yuborildi"
+                                caption=f"🎵 {title}\n👤 {artist}\n⚡ Keshdan yuborildi\n\n👉 @SavemuzikVideoBot"
                             )
                             return
                         
@@ -762,7 +764,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                     audio=audio_file,
                                     title=title,
                                     performer=artist,
-                                    caption=f"🎵 {title}\n👤 {artist}"
+                                    caption=f"🎵 {title}\n👤 {artist}\n\n👉 @SavemuzikVideoBot"
                                 )
                                 # Keshga saqlash
                                 if sent.audio:
@@ -858,7 +860,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                     audio=cached_file_id,
                                     title=item.get("title", "Audio"),
                                     performer=item.get("channel", ""),
-                                    caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}\n⚡ Keshdan (Tezkor)",
+                                    caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}\n⚡ Keshdan (Tezkor)\n\n👉 @SavemuzikVideoBot",
                                     reply_markup=InlineKeyboardMarkup([
                                         [
                                             InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
@@ -879,7 +881,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                             audio=audio_file,
                                             title=item.get("title", "Audio"),
                                             performer=item.get("channel", ""),
-                                            caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}",
+                                            caption=f"🎵 {item.get('title', 'Audio')}\n👤 {item.get('channel', '')}\n\n👉 @SavemuzikVideoBot",
                                             reply_markup=InlineKeyboardMarkup([
                                                 [
                                                     InlineKeyboardButton("🔄 Remix", callback_data=f"remix_{user_id}"),
