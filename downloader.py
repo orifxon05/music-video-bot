@@ -62,7 +62,7 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'best[filesize<50M]/best',
+            'format': 'bestvideo[ext=mp4][res<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
@@ -73,11 +73,11 @@ class Downloader:
             'source_address': '0.0.0.0', # Force IPv4
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios'],
+                    'player_client': ['android', 'ios', 'web'],
                 }
             },
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }
@@ -124,11 +124,11 @@ class Downloader:
             'source_address': '0.0.0.0', # Force IPv4
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios'],
+                    'player_client': ['android', 'ios', 'web'],
                 }
             },
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }
