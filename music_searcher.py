@@ -1,5 +1,6 @@
 """Qo'shiq qidirish moduli - nom bo'yicha"""
 import asyncio
+import os
 import yt_dlp
 
 
@@ -14,7 +15,21 @@ class MusicSearcher:
             'no_warnings': True,
             'extract_flat': True,
             'skip_download': True,
+            'source_address': '0.0.0.0', # IPv4 majburiy
+            'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                }
+            }
         }
+        
+        # Cookies qo'shish (Search uchun ham kerak)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
+        if os.path.exists(cookies_path):
+            self.ydl_opts['cookiefile'] = cookies_path
+            self.ydl_opts['user_agent'] = 'com.google.android.youtube/17.31.35 (Linux; U; Android 12; GB) Mozilla/5.0'
     
     async def search_by_name(self, query: str) -> dict:
         """Qo'shiq nomini qidirish"""

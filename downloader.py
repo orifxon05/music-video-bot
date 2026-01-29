@@ -67,35 +67,37 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            # Format: Agar video+audio birga topilmasa, borini yuklaydi (xatosiz)
+            'format': 'bestvideo+bestaudio/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
-            'source_address': '0.0.0.0', 
-            'format_sort': ['res:720', 'ext:mp4:m4a', 'codec:h264:m4a'], # Eng muvofiq format
+            'source_address': '0.0.0.0', # IPv4 majburiy
+            'merge_output_format': 'mp4',
             'socket_timeout': 30,
             'retries': 3,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios'], # Eng kam bloklanadigan clientlar
+                    'player_skip': ['webpage', 'configs'],
+                }
+            }
         }
         
-        # YouTube Cookies fayli (Eng asosiysi - inson ekanligingizni isbotlaydi)
+        # YouTube Cookies (Akkaunt tanitish)
         current_dir = os.path.dirname(os.path.abspath(__file__))
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         
         if os.path.exists(cookies_path):
-            logger.info(f"✅ Akkaunt bog'landi (Cookies): {cookies_path}")
+            logger.info(f"✅ YouTube akkaunt ulandi: {cookies_path}")
             ydl_opts['cookiefile'] = cookies_path
-            # Inson kabi User-Agent (Chrome)
-            ydl_opts['user_agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            # Akkaunt bilan birga mobil UA ishlatish ishonchli
+            ydl_opts['user_agent'] = 'com.google.android.youtube/17.31.35 (Linux; U; Android 12; GB) Mozilla/5.0'
         else:
-            # Agar cookies bo'lmasa, mobil clientlar orqali urinib ko'radi
-            ydl_opts['extractor_args'] = {
-                'youtube': {
-                    'player_client': ['android', 'ios'],
-                }
-            }
+            logger.warning("⚠️ youtube_cookies.txt topilmadi, xatolik ehtimoli bor")
         
         # Instagram uchun maxsus sozlamalar qo'shish
         platform = self.get_platform(url)
@@ -130,8 +132,12 @@ class Downloader:
             'geo_bypass': True,
             'noplaylist': True,
             'source_address': '0.0.0.0',
-            'format_sort': ['ext:m4a'],
             'socket_timeout': 30,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                }
+            }
         }
         
         # Akkaunt orqali kirish
@@ -140,13 +146,7 @@ class Downloader:
         
         if os.path.exists(cookies_path):
             ydl_opts['cookiefile'] = cookies_path
-            ydl_opts['user_agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-        else:
-            ydl_opts['extractor_args'] = {
-                'youtube': {
-                    'player_client': ['android', 'ios'],
-                }
-            }
+            ydl_opts['user_agent'] = 'com.google.android.youtube/17.31.35 (Linux; U; Android 12; GB) Mozilla/5.0'
         
         # Instagram uchun maxsus sozlamalar qo'shish
         platform = self.get_platform(url)
