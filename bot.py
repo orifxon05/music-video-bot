@@ -166,7 +166,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str = None):
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str = None, status_msg=None):
     """Link yuborilganda"""
     message = update.effective_message
     user_id = update.effective_user.id
@@ -186,7 +186,14 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
     db.increment_downloads()
     
     # Jarayonni boshlash
-    status_msg = await message.reply_text(MESSAGES["downloading"])
+    if not status_msg:
+        status_msg = await message.reply_text(MESSAGES["downloading"])
+    else:
+        try:
+            await status_msg.edit_text(MESSAGES["downloading"])
+        except:
+            pass
+
     try:
         await context.bot.send_chat_action(message.chat_id, "upload_video")
     except:
@@ -452,10 +459,10 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             keyboard = [
                 [
-                    InlineKeyboardButton("� Qo'shiq yuklab olish", callback_data=f"dlsong_{user_id}"),
+                    InlineKeyboardButton("📥 Qo'shiq yuklab olish", callback_data=f"dlsong_{user_id}"),
                 ],
                 [
-                    InlineKeyboardButton("�🔄 Remix/Cover", callback_data=f"remix_{user_id}"),
+                    InlineKeyboardButton("🔄 Remix/Cover", callback_data=f"remix_{user_id}"),
                     InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
                 ]
             ]
@@ -499,7 +506,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id in user_music_data and "audio_path" in user_music_data[user_id]:
             audio_path = user_music_data[user_id]["audio_path"]
             if os.path.exists(audio_path):
-                await query.message.reply_text("🎤 Shazam aniqlamoqda...")
+                status_msg = await query.message.reply_text("🎤 Shazam aniqlamoqda...")
                 
                 music_result = await recognizer.recognize_from_file(audio_path)
                 
@@ -511,6 +518,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
                 else:
                     await query.message.reply_text("😔 Qo'shiq aniqlanmadi")
+                
+                try:
+                    await status_msg.delete()
+                except:
+                    pass
             else:
                 await query.message.reply_text("❌ Audio fayl topilmadi")
         else:
@@ -520,7 +532,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Audio yuborish
         parts = data.split("_", 2)
         if len(parts) >= 2:
-            await query.message.reply_text(MESSAGES["processing"])
+            status_msg = await query.message.reply_text(MESSAGES["processing"])
             
             # Foydalanuvchi audio'sini yuborish
             if user_id in user_music_data and "audio_path" in user_music_data[user_id]:
@@ -531,6 +543,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             audio=audio_file,
                             title=user_music_data[user_id].get("title", "Audio"),
                             performer=user_music_data[user_id].get("artist", ""),
+                            caption="🎵 Audio yuborildi\n\n👉 @SavemuzikVideoBot",
                             reply_markup=InlineKeyboardMarkup([
                                 [
                                     InlineKeyboardButton("🎬 Video", callback_data=f"vid_{user_id}"),
@@ -538,8 +551,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 ]
                             ])
                         )
+                    try:
+                        await status_msg.delete()
+                    except:
+                        pass
                 else:
-                    await query.message.reply_text("❌ Audio fayl topilmadi")
+                    await status_msg.edit_text("❌ Audio fayl topilmadi")
             else:
                 await query.message.reply_text("❌ Audio ma'lumotlari topilmadi")
     
@@ -551,7 +568,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             artist = music_data.get("artist", "")
             
             if title:
-                await query.message.reply_text(MESSAGES["finding_remixes"])
+                status_msg = await query.message.reply_text(MESSAGES["finding_remixes"])
                 await context.bot.send_chat_action(query.message.chat_id, ChatAction.TYPING)
                 
                 results = await remix_finder.find_all_versions(title, artist)
@@ -581,15 +598,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Yuklab olish uchun birini tanlang 👇"""
                         
-                        await query.message.reply_text(
+                        await status_msg.edit_text(
                             text_msg,
                             parse_mode=ParseMode.MARKDOWN,
                             reply_markup=reply_markup
                         )
                     else:
-                        await query.message.reply_text("😔 Remix/Cover topilmadi")
+                        await status_msg.edit_text("😔 Remix/Cover topilmadi")
                 else:
-                    await query.message.reply_text("😔 Remix/Cover topilmadi")
+                    await status_msg.edit_text("😔 Remix/Cover topilmadi")
             else:
                 await query.message.reply_text("❌ Musiqa ma'lumotlari topilmadi")
         else:
@@ -635,7 +652,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                 })
                                 return
 
-                            await query.message.reply_text("📥 Remix yuklanmoqda... ⚡")
+                            status_msg = await query.message.reply_text("📥 Remix yuklanmoqda... ⚡")
                             
                             # Audio yuklab olish
                             audio_result = await downloader.download_audio(url, user_id)
@@ -667,10 +684,15 @@ Yuklab olish uchun birini tanlang 👇"""
                                     if sent_audio.audio:
                                         cache.save_audio(url, sent_audio.audio.file_id, item.get("title", ""))
                                 
+                                
+                                try:
+                                    await status_msg.delete()
+                                except:
+                                    pass
                                 downloader.cleanup_file(audio_path)
                             else:
                                 error_msg = audio_result.get('error', "Yuklab bo'lmadi")
-                                await query.message.reply_text(f"❌ {error_msg}")
+                                await status_msg.edit_text(f"❌ {error_msg}")
                         else:
                             await query.message.reply_text("❌ URL topilmadi")
                     else:
@@ -683,7 +705,7 @@ Yuklab olish uchun birini tanlang 👇"""
 
     elif data.startswith("vid_"):
         # Videoni yuklab berish
-        await query.message.reply_text("📥 Video qidirilmoqda/yuklanmoqda... ⚡")
+        status_msg = await query.message.reply_text("📥 Video qidirilmoqda/yuklanmoqda... ⚡")
         
         url = None
         if user_id in user_music_data:
@@ -691,7 +713,7 @@ Yuklab olish uchun birini tanlang 👇"""
             
         if url:
             # Agar URL bo'lsa to'g'ridan-to'g'ri yuklash
-            await handle_link(update, context, url)
+            await handle_link(update, context, url, status_msg=status_msg)
         elif user_id in user_music_data:
             # URL yo'q (masalan Shazam natijasi), nomi bilan qidirish
             music_data = user_music_data[user_id]
@@ -701,13 +723,13 @@ Yuklab olish uchun birini tanlang 👇"""
                 results = await searcher.search_by_name(search_query)
                 if results.get("success") and results.get("results"):
                     best_url = results["results"][0]["url"]
-                    await handle_link(update, context, best_url)
+                    await handle_link(update, context, best_url, status_msg=status_msg)
                 else:
-                    await query.message.reply_text("😔 Video topilmadi")
+                    await status_msg.edit_text("😔 Video topilmadi")
             else:
-                await query.message.reply_text("❌ Musiqa ma'lumotlari yetarli emas")
+                await status_msg.edit_text("❌ Musiqa ma'lumotlari yetarli emas")
         else:
-            await query.message.reply_text("❌ Avval musiqa toping")
+            await status_msg.edit_text("❌ Avval musiqa toping")
 
     elif data == "check_sub":
         if await check_subscription(update, context):
@@ -730,7 +752,7 @@ Yuklab olish uchun birini tanlang 👇"""
                 
                 if title:
                     search_query = f"{title} {artist}".strip()
-                    await query.message.reply_text(f"📥 Qo'shiq yuklanmoqda...\n🔍 {search_query}")
+                    status_msg = await query.message.reply_text(f"📥 Qo'shiq yuklanmoqda...\n🔍 {search_query}")
                     try:
                         await context.bot.send_chat_action(query.message.chat_id, "upload_document")
                     except:
@@ -751,6 +773,10 @@ Yuklab olish uchun birini tanlang 👇"""
                                 performer=artist,
                                 caption=f"🎵 {title}\n👤 {artist}\n⚡ Keshdan yuborildi\n\n👉 @SavemuzikVideoBot"
                             )
+                            try:
+                                await status_msg.delete()
+                            except:
+                                pass
                             return
                         
                         # Audio yuklab olish
@@ -770,10 +796,15 @@ Yuklab olish uchun birini tanlang 👇"""
                                 if sent.audio:
                                     cache.save_audio(best_url, sent.audio.file_id, title)
                             
+                            
+                            try:
+                                await status_msg.delete()
+                            except:
+                                pass
                             downloader.cleanup_file(audio_path)
                         else:
                             error_msg = audio_result.get('error', "Qo'shiq yuklab bo'lmadi")
-                            await query.message.reply_text(f"❌ {error_msg}")
+                            await status_msg.edit_text(f"❌ {error_msg}")
                     else:
                         await query.message.reply_text("😔 YouTube'da xatolik yoki topilmadi")
                 else:
@@ -872,7 +903,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                     user_music_data[user_id] = {}
                                 user_music_data[user_id].update({"url": url, "title": item.get("title", "Audio")})
                             else:
-                                await query.message.reply_text(MESSAGES["downloading"])
+                                status_msg = await query.message.reply_text(MESSAGES["downloading"])
                                 audio_result = await downloader.download_audio(url, user_id)
                                 if audio_result.get("success"):
                                     audio_path = audio_result["filepath"]
@@ -894,10 +925,15 @@ Yuklab olish uchun birini tanlang 👇"""
                                     user_music_data[user_id].update({"url": url, "title": item.get("title", "Audio")})
                                     if sent_msg.audio:
                                         cache.save_audio(url, sent_msg.audio.file_id, item.get("title", ""))
+                                    
+                                    try:
+                                        await status_msg.delete()
+                                    except:
+                                        pass
                                     downloader.cleanup_file(audio_path)
                                 else:
                                     error_msg = audio_result.get('error', "Yuklab bo'lmadi")
-                                    await query.message.reply_text(f"❌ {error_msg}")
+                                    await status_msg.edit_text(f"❌ {error_msg}")
         except Exception as e:
             logger.error(f"Download callback error: {e}")
             await query.message.reply_text(MESSAGES["error"])
