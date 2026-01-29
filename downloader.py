@@ -62,25 +62,13 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'bestvideo+bestaudio/best',
+            'format': 'best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
-            'extract_flat': False,
-            'socket_timeout': 30,
             'nocheckcertificate': True,
             'geo_bypass': True,
-            'source_address': '0.0.0.0', # Force IPv4
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                }
-            },
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-            }
+            'noplaylist': True,
         }
         
         # YouTube Cookies fayli bo'lsa foydalanish
@@ -117,21 +105,9 @@ class Downloader:
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
-            'socket_timeout': 60,
-            'retries': 2,
             'nocheckcertificate': True,
             'geo_bypass': True,
-            'source_address': '0.0.0.0', # Force IPv4
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                }
-            },
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
-            }
+            'noplaylist': True,
         }
         
         # YouTube Cookies fayli bo'lsa foydalanish
