@@ -67,15 +67,22 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'format': 'bestvideo+bestaudio/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
+            'source_address': '0.0.0.0', # IPv4 majburlash (Railway uchun juda muhim)
             'merge_output_format': 'mp4',
             'socket_timeout': 30,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'web'],
+                    'player_skip': ['webpage', 'configs'],
+                }
+            }
         }
         
         # YouTube Cookies fayli bo'lsa foydalanish
@@ -83,18 +90,11 @@ class Downloader:
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         
         if os.path.exists(cookies_path):
-            logger.info(f"✅ Cookies fayli topildi: {cookies_path}")
+            logger.info(f"✅ Cookies fayli qo'llanmoqda: {cookies_path}")
             ydl_opts['cookiefile'] = cookies_path
         else:
-            logger.warning(f"⚠️ Cookies fayli topilmadi: {cookies_path}")
-            # Cookies bo'lmaganda mobile user-agent va clientlar yaxshi ishlaydi
             ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-            }
-            ydl_opts['extractor_args'] = {
-                'youtube': {
-                    'player_client': ['android', 'ios'],
-                }
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             }
         
         # Instagram uchun maxsus sozlamalar qo'shish
@@ -129,7 +129,13 @@ class Downloader:
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
+            'source_address': '0.0.0.0', # IPv4 majburlash
             'socket_timeout': 30,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'web'],
+                }
+            }
         }
         
         # YouTube Cookies fayli bo'lsa foydalanish
@@ -137,16 +143,10 @@ class Downloader:
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         
         if os.path.exists(cookies_path):
-            logger.info(f"✅ Audio uchun Cookies fayli qo'llanmoqda")
             ydl_opts['cookiefile'] = cookies_path
         else:
             ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-            }
-            ydl_opts['extractor_args'] = {
-                'youtube': {
-                    'player_client': ['android', 'ios'],
-                }
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             }
         
         # Instagram uchun maxsus sozlamalar qo'shish
