@@ -62,7 +62,7 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4][res<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'format': 'bestvideo+bestaudio/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
@@ -113,7 +113,7 @@ class Downloader:
         
         # Tez va sifatli format - m4a Player uchun eng yaxshisi
         ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'bestaudio/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
