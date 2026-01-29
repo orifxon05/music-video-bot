@@ -1,6 +1,7 @@
 """Video va audio yuklab olish moduli"""
 import os
 import asyncio
+import logging
 import yt_dlp
 from urllib.parse import urlparse
 from config import (
@@ -11,6 +12,9 @@ from config import (
     INSTAGRAM_USERNAME,
     INSTAGRAM_PASSWORD
 )
+
+# Logging sozlamalari
+logger = logging.getLogger(__name__)
 
 
 class Downloader:
@@ -62,7 +66,7 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'best', # Eng ishonchli format
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
@@ -81,13 +85,13 @@ class Downloader:
             ydl_opts['cookiefile'] = cookies_path
         else:
             logger.warning(f"⚠️ Cookies fayli topilmadi: {cookies_path}")
-            # Cookies bo'lmaganda mobile user-agent yaxshi ishlaydi
+            # Cookies bo'lmaganda mobile user-agent va clientlar yaxshi ishlaydi
             ydl_opts['http_headers'] = {
                 'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
             }
             ydl_opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['android', 'web'],
+                    'player_client': ['android', 'ios'],
                 }
             }
         
