@@ -67,7 +67,7 @@ class Downloader:
         )
         
         ydl_opts = {
-            # Eng ishonchli format: YouTube o'zi tayyorlab qo'ygan bitta fayl
+            # Eng ishonchli va universal format
             'format': 'best', 
             'outtmpl': output_template,
             'quiet': True,
@@ -77,26 +77,27 @@ class Downloader:
             'noplaylist': True,
             'source_address': '0.0.0.0', 
             'socket_timeout': 60,
-            'retries': 5,
+            'retries': 10,
+            'fragment_retries': 10,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios'], # Hozirda eng ishonchli yo'l
+                    'player_client': ['ios'],
+                    'player_skip': ['webpage', 'configs'],
                 }
             }
         }
         
-        # YouTube Cookies (Sizning akkauntingiz)
+        # YouTube Cookies
         current_dir = os.path.dirname(os.path.abspath(__file__))
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         
         if os.path.exists(cookies_path):
             logger.info(f"✅ Akkaunt bog'landi (iOS-Match): {cookies_path}")
             ydl_opts['cookiefile'] = cookies_path
-            # iPhone User-Agent - bu Cookies bilan birga YouTube'ni chalg'itish uchun kerak
             ydl_opts['user_agent'] = 'com.google.ios.youtube/19.29.1 (iPhone16,2; iOS 17.5.1; gzip)'
         else:
-            logger.warning("⚠️ Cookies topilmadi, bot bloklanishi mumkin")
-            ydl_opts['user_agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            logger.warning("⚠️ Cookies topilmadi!")
+            ydl_opts['user_agent'] = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
         
         # Instagram uchun maxsus sozlamalar qo'shish
         platform = self.get_platform(url)
