@@ -62,19 +62,27 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'best',
+            'format': 'b/best', # Eng barqaror format tanlash
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
+            'wait_for_video': (1, 5),
+            'socket_timeout': 30,
         }
         
         # YouTube Cookies fayli bo'lsa foydalanish
-        cookies_path = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         if os.path.exists(cookies_path):
             ydl_opts['cookiefile'] = cookies_path
+            # Cookies bo'lsa, qo'shimcha headerlar ba'zan xalaqit beradi
+        else:
+            ydl_opts['http_headers'] = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            }
         
         # Instagram uchun maxsus sozlamalar qo'shish
         platform = self.get_platform(url)
@@ -101,19 +109,25 @@ class Downloader:
         
         # Tez va sifatli format - m4a Player uchun eng yaxshisi
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'ba/bestaudio/best', # Faqat audio yoki eng yaxshisi
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
+            'socket_timeout': 30,
         }
         
         # YouTube Cookies fayli bo'lsa foydalanish
-        cookies_path = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         if os.path.exists(cookies_path):
             ydl_opts['cookiefile'] = cookies_path
+        else:
+            ydl_opts['http_headers'] = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            }
         
         # Instagram uchun maxsus sozlamalar qo'shish
         platform = self.get_platform(url)
