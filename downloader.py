@@ -62,26 +62,33 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'b/best', # Eng barqaror format tanlash
+            'format': 'best', # Eng ishonchli format
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
-            'wait_for_video': (1, 5),
             'socket_timeout': 30,
         }
         
         # YouTube Cookies fayli bo'lsa foydalanish
         current_dir = os.path.dirname(os.path.abspath(__file__))
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
+        
         if os.path.exists(cookies_path):
+            logger.info(f"✅ Cookies fayli topildi: {cookies_path}")
             ydl_opts['cookiefile'] = cookies_path
-            # Cookies bo'lsa, qo'shimcha headerlar ba'zan xalaqit beradi
         else:
+            logger.warning(f"⚠️ Cookies fayli topilmadi: {cookies_path}")
+            # Cookies bo'lmaganda mobile user-agent yaxshi ishlaydi
             ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            }
+            ydl_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                }
             }
         
         # Instagram uchun maxsus sozlamalar qo'shish
@@ -109,7 +116,7 @@ class Downloader:
         
         # Tez va sifatli format - m4a Player uchun eng yaxshisi
         ydl_opts = {
-            'format': 'ba/bestaudio/best', # Faqat audio yoki eng yaxshisi
+            'format': 'bestaudio/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
@@ -122,11 +129,17 @@ class Downloader:
         # YouTube Cookies fayli bo'lsa foydalanish
         current_dir = os.path.dirname(os.path.abspath(__file__))
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
+        
         if os.path.exists(cookies_path):
             ydl_opts['cookiefile'] = cookies_path
         else:
             ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            }
+            ydl_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                }
             }
         
         # Instagram uchun maxsus sozlamalar qo'shish
