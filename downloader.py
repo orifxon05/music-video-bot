@@ -67,34 +67,34 @@ class Downloader:
         )
         
         ydl_opts = {
-            'format': 'bestvideo+bestaudio/best',
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
-            'source_address': '0.0.0.0', # IPv4 majburlash (Railway uchun juda muhim)
-            'merge_output_format': 'mp4',
+            'source_address': '0.0.0.0', 
+            'format_sort': ['res:720', 'ext:mp4:m4a', 'codec:h264:m4a'], # Eng muvofiq format
             'socket_timeout': 30,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                    'player_skip': ['webpage', 'configs'],
-                }
-            }
+            'retries': 3,
         }
         
-        # YouTube Cookies fayli bo'lsa foydalanish
+        # YouTube Cookies fayli (Eng asosiysi - inson ekanligingizni isbotlaydi)
         current_dir = os.path.dirname(os.path.abspath(__file__))
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         
         if os.path.exists(cookies_path):
-            logger.info(f"✅ Cookies fayli qo'llanmoqda: {cookies_path}")
+            logger.info(f"✅ Akkaunt bog'landi (Cookies): {cookies_path}")
             ydl_opts['cookiefile'] = cookies_path
+            # Inson kabi User-Agent (Chrome)
+            ydl_opts['user_agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         else:
-            ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            # Agar cookies bo'lmasa, mobil clientlar orqali urinib ko'radi
+            ydl_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                }
             }
         
         # Instagram uchun maxsus sozlamalar qo'shish
@@ -129,24 +129,23 @@ class Downloader:
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
-            'source_address': '0.0.0.0', # IPv4 majburlash
+            'source_address': '0.0.0.0',
+            'format_sort': ['ext:m4a'],
             'socket_timeout': 30,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                }
-            }
         }
         
-        # YouTube Cookies fayli bo'lsa foydalanish
+        # Akkaunt orqali kirish
         current_dir = os.path.dirname(os.path.abspath(__file__))
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         
         if os.path.exists(cookies_path):
             ydl_opts['cookiefile'] = cookies_path
+            ydl_opts['user_agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
         else:
-            ydl_opts['http_headers'] = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            ydl_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                }
             }
         
         # Instagram uchun maxsus sozlamalar qo'shish
