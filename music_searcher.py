@@ -15,21 +15,21 @@ class MusicSearcher:
             'no_warnings': True,
             'extract_flat': True,
             'skip_download': True,
-            'source_address': '0.0.0.0', # IPv4 majburiy
+            'source_address': '0.0.0.0', # IPv4
             'nocheckcertificate': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios'],
+                    'player_client': ['ios'],
                 }
             }
         }
         
-        # Cookies qo'shish (Search uchun ham kerak)
+        # Cookies va iOS User-Agent (Search uchun ham bir xil bo'lishi shart)
         current_dir = os.path.dirname(os.path.abspath(__file__))
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         if os.path.exists(cookies_path):
             self.ydl_opts['cookiefile'] = cookies_path
-            self.ydl_opts['user_agent'] = 'com.google.android.youtube/17.31.35 (Linux; U; Android 12; GB) Mozilla/5.0'
+            self.ydl_opts['user_agent'] = 'com.google.ios.youtube/19.29.1 (iPhone16,2; iOS 17.5.1; gzip)'
     
     async def search_by_name(self, query: str) -> dict:
         """Qo'shiq nomini qidirish"""
