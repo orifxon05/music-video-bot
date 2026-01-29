@@ -70,12 +70,15 @@ class Downloader:
             'socket_timeout': 30,
             'nocheckcertificate': True,
             'geo_bypass': True,
+            'concurrent_fragment_downloads': 1,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                    'skip': ['dash', 'hls']
+                    'player_client': ['android', 'ios', 'tv', 'web'],
+                    'player_skip': ['webpage', 'configs'],
                 }
             },
+            'youtube_include_dash_manifest': False,
+            'youtube_include_hls_manifest': False,
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -83,6 +86,7 @@ class Downloader:
                 'Sec-Fetch-Mode': 'navigate',
                 'Origin': 'https://www.youtube.com',
                 'Referer': 'https://www.youtube.com/',
+                'DNT': '1',
             }
         }
         
@@ -119,12 +123,15 @@ class Downloader:
             'retries': 2,
             'nocheckcertificate': True,
             'geo_bypass': True,
+            'concurrent_fragment_downloads': 1,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                    'skip': ['dash', 'hls']
+                    'player_client': ['android', 'ios', 'tv', 'web'],
+                    'player_skip': ['webpage', 'configs'],
                 }
             },
+            'youtube_include_dash_manifest': False,
+            'youtube_include_hls_manifest': False,
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -132,6 +139,7 @@ class Downloader:
                 'Sec-Fetch-Mode': 'navigate',
                 'Origin': 'https://www.youtube.com',
                 'Referer': 'https://www.youtube.com/',
+                'DNT': '1',
             }
         }
         

@@ -2,7 +2,7 @@
 python-telegram-bot[job-queue]==20.7
 
 # Video Downloading
-yt-dlp
+yt-dlp>=2025.1.15
 
 # Audio Recognition (Shazam-like)
 shazamio==0.5.1
