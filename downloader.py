@@ -70,25 +70,23 @@ class Downloader:
             'socket_timeout': 30,
             'nocheckcertificate': True,
             'geo_bypass': True,
-            'concurrent_fragment_downloads': 1,
+            'source_address': '0.0.0.0', # Force IPv4
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'tv', 'web'],
-                    'player_skip': ['webpage', 'configs'],
+                    'player_client': ['android', 'ios'],
                 }
             },
-            'youtube_include_dash_manifest': False,
-            'youtube_include_hls_manifest': False,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36',
+                'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Sec-Fetch-Mode': 'navigate',
-                'Origin': 'https://www.youtube.com',
-                'Referer': 'https://www.youtube.com/',
-                'DNT': '1',
             }
         }
+        
+        # YouTube Cookies fayli bo'lsa foydalanish
+        cookies_path = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        if os.path.exists(cookies_path):
+            ydl_opts['cookiefile'] = cookies_path
         
         # Instagram uchun maxsus sozlamalar qo'shish
         platform = self.get_platform(url)
@@ -123,25 +121,23 @@ class Downloader:
             'retries': 2,
             'nocheckcertificate': True,
             'geo_bypass': True,
-            'concurrent_fragment_downloads': 1,
+            'source_address': '0.0.0.0', # Force IPv4
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'tv', 'web'],
-                    'player_skip': ['webpage', 'configs'],
+                    'player_client': ['android', 'ios'],
                 }
             },
-            'youtube_include_dash_manifest': False,
-            'youtube_include_hls_manifest': False,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36',
+                'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Sec-Fetch-Mode': 'navigate',
-                'Origin': 'https://www.youtube.com',
-                'Referer': 'https://www.youtube.com/',
-                'DNT': '1',
             }
         }
+        
+        # YouTube Cookies fayli bo'lsa foydalanish
+        cookies_path = os.path.join(os.path.dirname(__file__), 'youtube_cookies.txt')
+        if os.path.exists(cookies_path):
+            ydl_opts['cookiefile'] = cookies_path
         
         # Instagram uchun maxsus sozlamalar qo'shish
         platform = self.get_platform(url)
