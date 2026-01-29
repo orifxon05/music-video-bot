@@ -14,6 +14,7 @@ from config import (
 )
 
 # Logging sozlamalari
+import logging
 logger = logging.getLogger(__name__)
 
 
@@ -73,6 +74,7 @@ class Downloader:
             'nocheckcertificate': True,
             'geo_bypass': True,
             'noplaylist': True,
+            'merge_output_format': 'mp4',
             'socket_timeout': 30,
         }
         
@@ -135,6 +137,7 @@ class Downloader:
         cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
         
         if os.path.exists(cookies_path):
+            logger.info(f"✅ Audio uchun Cookies fayli qo'llanmoqda")
             ydl_opts['cookiefile'] = cookies_path
         else:
             ydl_opts['http_headers'] = {
@@ -142,7 +145,7 @@ class Downloader:
             }
             ydl_opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['android', 'web'],
+                    'player_client': ['android', 'ios'],
                 }
             }
         
