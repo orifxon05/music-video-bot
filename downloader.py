@@ -10,8 +10,13 @@ from config import (
     MAX_FILE_SIZE_MB,
     INSTAGRAM_COOKIES_FILE,
     INSTAGRAM_USERNAME,
-    INSTAGRAM_PASSWORD
+    INSTAGRAM_PASSWORD,
+    PROXY_URL,
+    COBALT_API,
+    COBALT_ENABLED
 )
+import requests
+import json
 
 # Logging sozlamalari
 import logging
@@ -81,10 +86,14 @@ class Downloader:
             'fragment_retries': 10,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios', 'android', 'mweb', 'web'],
+                    'player_client': ['tv', 'mweb', 'android', 'ios'],
                 }
             }
         }
+        
+        # Proxy qo'shish
+        if PROXY_URL:
+            ydl_opts['proxy'] = PROXY_URL
         
         # YouTube Cookies
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -112,7 +121,71 @@ class Downloader:
             )
             return result
         except Exception as e:
+            # Agar 403 xatosi bo'lsa Cobalt ishlatamiz
+            if COBALT_ENABLED and ("403" in str(e) or "forbidden" in str(e).lower()):
+                 logger.info("⚡ Video: yt-dlp 403 xato. Cobalt ishlatilmoqda...")
+                 cobalt_res = await self.download_with_cobalt(url, user_id, is_video=True)
+                 if cobalt_res.get("success"):
+                     return cobalt_res
             return {"success": False, "error": str(e)}
+
+    async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
+        """Cobalt API orqali yuklab olish (Ishonchli va 403 ni chetlab o'tadi)"""
+        try:
+            # Cobalt API URL - Agar .env'dan kelmasa asosiy URL ishlatiladi
+            api_url = COBALT_API if COBALT_API else "https://api.cobalt.tools/api/json"
+            
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "url": url,
+                "videoQuality": "720",
+                "downloadMode": "video" if is_video else "audio",
+                "filenameStyle": "basic"
+            }
+            
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=30)
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Cobalt'da status "stream", "redirect" yoki "tunnel" bo'lishi mumkin
+                download_url = data.get("url")
+                
+                if download_url:
+                    # Faylni yuklab olish
+                    ext = "mp4" if is_video else "mp3"
+                    filepath = os.path.join(self.download_path, f"{user_id}_cobalt_{os.urandom(4).hex()}.{ext}")
+                    
+                    file_res = await loop.run_in_executor(
+                        None,
+                        lambda: requests.get(download_url, stream=True, timeout=60)
+                    )
+                    
+                    if file_res.status_code == 200:
+                        with open(filepath, 'wb') as f:
+                            for chunk in file_res.iter_content(chunk_size=8192):
+                                if chunk:
+                                    f.write(chunk)
+                        
+                        return {
+                            "success": True,
+                            "filepath": filepath,
+                            "title": "Video" if is_video else "Audio",
+                            "duration": 0,
+                            "uploader": "Cobalt API",
+                            "platform": self.get_platform(url),
+                        }
+            
+            return {"success": False, "error": f"Cobalt xatosi (Status: {response.status_code})"}
+        except Exception as e:
+            logger.error(f"Cobalt process xatosi: {e}")
+            return {"success": False, "error": f"Tashqi API xatosi: {str(e)[:50]}"}
     
     async def download_audio(self, url: str, user_id: int) -> dict:
         """Audio yuklab olish - TEZ"""
@@ -247,6 +320,13 @@ class Downloader:
                 except Exception as retry_e:
                     return {"success": False, "error": f"Retry xatosi: {str(retry_e)[:50]}"}
             
+            # Agar 403 xatosi bo'lsa Cobalt ishlatamiz
+            if COBALT_ENABLED and ("403" in str(e) or "forbidden" in str(e).lower()):
+                 logger.info("⚡ Audio: yt-dlp 403 xato. Cobalt ishlatilmoqda...")
+                 cobalt_res = await self.download_with_cobalt(url, user_id, is_video=False)
+                 if cobalt_res.get("success"):
+                     return cobalt_res
+
             return {"success": False, "error": f"Xatolik: {str(e)[:100]}"}
     
     def _download_audio_yt_dlp(self, url: str, ydl_opts: dict, output_template: str) -> dict:

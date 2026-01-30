@@ -33,6 +33,12 @@ INSTAGRAM_COOKIES_FILE = os.getenv("INSTAGRAM_COOKIES_FILE", "www.instagram.com_
 INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "")
 INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD", "")
 
+# Proxy va Tashqi API (Fix 403 Forbidden)
+# Railway'da uzoq muddat ishlash uchun proxy kerak
+PROXY_URL = os.getenv("PROXY_URL", "") # Masalan: http://user:pass@host:port
+COBALT_API = os.getenv("COBALT_API", "https://api.cobalt.tools/api/json")
+COBALT_ENABLED = os.getenv("COBALT_ENABLED", "True").lower() == "true"
+
 # Messages
 MESSAGES = {
     "start": """╔══════════════════════════════╗
