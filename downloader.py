@@ -19,7 +19,6 @@ import requests
 import json
 
 # Logging sozlamalari
-import logging
 logger = logging.getLogger(__name__)
 
 
@@ -119,14 +118,17 @@ class Downloader:
                 None, 
                 lambda: self._download_with_yt_dlp(url, ydl_opts)
             )
+            
+            # Agar 403 xatosi bo'lsa Cobalt ishlatamiz
+            if not result.get("success") and COBALT_ENABLED:
+                 err = str(result.get("error", "")).lower()
+                 if "403" in err or "forbidden" in err:
+                     logger.info("⚡ Video: yt-dlp 403 xato. Cobalt ishlatilmoqda...")
+                     cobalt_res = await self.download_with_cobalt(url, user_id, is_video=True)
+                     if cobalt_res.get("success"):
+                         return cobalt_res
             return result
         except Exception as e:
-            # Agar 403 xatosi bo'lsa Cobalt ishlatamiz
-            if COBALT_ENABLED and ("403" in str(e) or "forbidden" in str(e).lower()):
-                 logger.info("⚡ Video: yt-dlp 403 xato. Cobalt ishlatilmoqda...")
-                 cobalt_res = await self.download_with_cobalt(url, user_id, is_video=True)
-                 if cobalt_res.get("success"):
-                     return cobalt_res
             return {"success": False, "error": str(e)}
 
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
@@ -232,6 +234,16 @@ class Downloader:
                 None, 
                 lambda: self._download_audio_simple(url, ydl_opts)
             )
+            
+            # Agar yt-dlp 403 xato bergan bo'lsa va Cobalt yoqilgan bo'lsa
+            if not result.get("success") and COBALT_ENABLED:
+                err = str(result.get("error", "")).lower()
+                if "403" in err or "forbidden" in err:
+                    logger.info("⚡ Audio: yt-dlp 403 xato. Cobalt ishlatilmoqda...")
+                    cobalt_res = await self.download_with_cobalt(url, user_id, is_video=False)
+                    if cobalt_res.get("success"):
+                        return cobalt_res
+            
             return result
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -320,13 +332,6 @@ class Downloader:
                 except Exception as retry_e:
                     return {"success": False, "error": f"Retry xatosi: {str(retry_e)[:50]}"}
             
-            # Agar 403 xatosi bo'lsa Cobalt ishlatamiz
-            if COBALT_ENABLED and ("403" in str(e) or "forbidden" in str(e).lower()):
-                 logger.info("⚡ Audio: yt-dlp 403 xato. Cobalt ishlatilmoqda...")
-                 cobalt_res = await self.download_with_cobalt(url, user_id, is_video=False)
-                 if cobalt_res.get("success"):
-                     return cobalt_res
-
             return {"success": False, "error": f"Xatolik: {str(e)[:100]}"}
     
     def _download_audio_yt_dlp(self, url: str, ydl_opts: dict, output_template: str) -> dict:
