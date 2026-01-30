@@ -81,8 +81,7 @@ class Downloader:
             'fragment_retries': 10,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios'],
-                    'player_skip': ['webpage', 'configs'],
+                    'player_client': ['ios', 'android', 'mweb', 'web'],
                 }
             }
         }
@@ -135,7 +134,7 @@ class Downloader:
             'socket_timeout': 60,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios'],
+                    'player_client': ['ios', 'android', 'mweb', 'web'],
                 }
             }
         }
@@ -223,6 +222,31 @@ class Downloader:
                 return {"success": False, "error": "Fayl yuklandi lekin topilmadi"}
                     
         except Exception as e:
+            # Agar birinchi urinishda format xatosi bo'lsa, oddiyroq sozlamalar bilan sinab ko'ramiz
+            if "format" in str(e).lower() or "client" in str(e).lower():
+                try:
+                    logger.info("🔄 Qayta urinish: Oddiy format bilan...")
+                    simple_opts = ydl_opts.copy()
+                    simple_opts['format'] = 'ba/best'
+                    if 'extractor_args' in simple_opts:
+                        del simple_opts['extractor_args']
+                    
+                    with yt_dlp.YoutubeDL(simple_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        if info:
+                            # Fayl yo'lini topish
+                            filepath = ydl.prepare_filename(info)
+                            if os.path.exists(filepath):
+                                return {
+                                    "success": True,
+                                    "filepath": filepath,
+                                    "title": info.get('title', 'Audio'),
+                                    "duration": info.get('duration', 0),
+                                    "uploader": info.get('uploader', ''),
+                                }
+                except Exception as retry_e:
+                    return {"success": False, "error": f"Retry xatosi: {str(retry_e)[:50]}"}
+            
             return {"success": False, "error": f"Xatolik: {str(e)[:100]}"}
     
     def _download_audio_yt_dlp(self, url: str, ydl_opts: dict, output_template: str) -> dict:
@@ -316,9 +340,32 @@ class Downloader:
                 else:
                     return {"success": False, "error": "Fayl yuklanmadi"}
                     
-        except yt_dlp.utils.DownloadError as e:
-            return {"success": False, "error": f"Yuklab olishda xatolik"}
         except Exception as e:
+            # Format xatosi bo'lsa qayta urinish
+            if "format" in str(e).lower() or "client" in str(e).lower():
+                try:
+                    logger.info("🔄 Video qayta urinish: Oddiy rejimda...")
+                    simple_opts = ydl_opts.copy()
+                    simple_opts['format'] = 'bestvideo+bestaudio/best'
+                    if 'extractor_args' in simple_opts:
+                        del simple_opts['extractor_args']
+                    
+                    with yt_dlp.YoutubeDL(simple_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        if info:
+                            filepath = ydl.prepare_filename(info)
+                            if os.path.exists(filepath):
+                                return {
+                                    "success": True,
+                                    "filepath": filepath,
+                                    "title": info.get('title', 'Nomalum'),
+                                    "duration": info.get('duration', 0),
+                                    "uploader": info.get('uploader', 'Nomalum'),
+                                    "thumbnail": info.get('thumbnail'),
+                                    "platform": self.get_platform(url),
+                                }
+                except:
+                    pass
             return {"success": False, "error": str(e)}
     
     def cleanup_file(self, filepath: str):

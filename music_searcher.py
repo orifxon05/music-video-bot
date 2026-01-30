@@ -19,7 +19,7 @@ class MusicSearcher:
             'nocheckcertificate': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['ios'],
+                    'player_client': ['ios', 'android', 'mweb', 'web'],
                 }
             }
         }
