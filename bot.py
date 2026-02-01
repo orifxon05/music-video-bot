@@ -1144,6 +1144,7 @@ def main():
     
     # Botni ishga tushirish
     logger.info("🤖 Bot ishga tushirildi!")
+    keep_alive()  # Render uchun veb-serverni ishga tushirish
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
