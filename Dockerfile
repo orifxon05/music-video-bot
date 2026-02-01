@@ -1,4 +1,8 @@
+
 FROM python:3.10-slim
+
+# Loglarni darhol chiqarish (buferlamaslik)
+ENV PYTHONUNBUFFERED=1
 
 # FFmpeg o'rnatish
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*

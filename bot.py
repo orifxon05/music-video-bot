@@ -1105,47 +1105,58 @@ def format_duration(seconds) -> str:
 
 def main():
     """Botni ishga tushirish"""
+    print("---------------------------------------------------")
+    print(" >>> BOT ISHGA TUSHMOQDA (STARTING)...")
+    print("---------------------------------------------------")
+    
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN topilmadi! .env faylini tekshiring.")
         return
     
-    # Downloads papkasini yaratish
-    os.makedirs(DOWNLOAD_PATH, exist_ok=True)
-    
-    # Bot yaratish
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Keshni tozalash vazifasini qo'shish (har 12 soatda)
-    async def clear_cache_job(context: ContextTypes.DEFAULT_TYPE):
-        cache.clear_old()
-        logger.info("🧹 Eski keshlari tozalandi")
+    try:
+        # Downloads papkasini yaratish
+        os.makedirs(DOWNLOAD_PATH, exist_ok=True)
         
-    job_queue = application.job_queue
-    job_queue.run_repeating(clear_cache_job, interval=12*3600, first=3600)
-    
-    # Handlerlarni qo'shish
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("stats", stats_command))
-    application.add_handler(CommandHandler("admin", admin_command))
-    
-    # Audio handler
-    # Audio/Video handler
-    application.add_handler(MessageHandler(
-        filters.AUDIO | filters.VOICE | filters.VIDEO | filters.VIDEO_NOTE | filters.Document.ALL,
-        handle_audio
-    ))
-    
-    # Text/Link handler
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    
-    # Callback handler
-    application.add_handler(CallbackQueryHandler(handle_callback))
-    
-    # Botni ishga tushirish
-    logger.info("🤖 Bot ishga tushirildi!")
-    keep_alive()  # Render uchun veb-serverni ishga tushirish
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Bot yaratish
+        application = Application.builder().token(BOT_TOKEN).build()
+        
+        # Keshni tozalash vazifasini qo'shish (har 12 soatda)
+        async def clear_cache_job(context: ContextTypes.DEFAULT_TYPE):
+            cache.clear_old()
+            logger.info("🧹 Eski keshlari tozalandi")
+            
+        job_queue = application.job_queue
+        job_queue.run_repeating(clear_cache_job, interval=12*3600, first=3600)
+        
+        # Handlerlarni qo'shish
+        application.add_handler(CommandHandler("start", start_command))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("stats", stats_command))
+        application.add_handler(CommandHandler("admin", admin_command))
+        
+        # Audio handler
+        # Audio/Video handler
+        application.add_handler(MessageHandler(
+            filters.AUDIO | filters.VOICE | filters.VIDEO | filters.VIDEO_NOTE | filters.Document.ALL,
+            handle_audio
+        ))
+        
+        # Text/Link handler
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+        
+        # Callback handler
+        application.add_handler(CallbackQueryHandler(handle_callback))
+        
+        # Botni ishga tushirish
+        logger.info("🤖 Bot ishga tushirildi! (Polling boshlanmoqda)")
+        print(" >>> BOT TAYYOR! POLLING BOSHLANDI.")
+        
+        keep_alive()  # Render uchun veb-serverni ishga tushirish
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        
+    except Exception as e:
+        logger.critical(f"BOT CRASHED: {e}", exc_info=True)
+        print(f"!!! KRITIK XATOLIK: {e}")
 
 
 if __name__ == "__main__":
