@@ -40,6 +40,25 @@ user_music_data = {}
 user_search_data = {}  # Qidiruv natijalari
 user_url_data = {}  # URL va user_id bog'liqligi
 
+# ==================== KEEP ALIVE (FOR RENDER) ====================
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
+# =================================================================
+
 async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Kanalga a'zolikni tekshirish"""
     from config import ADMIN_ID
