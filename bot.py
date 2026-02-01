@@ -59,8 +59,33 @@ def keep_alive():
     t.start()
 # =================================================================
 
+# ==================== CACHE SETTINGS ====================
+import time
+CHANNELS_CACHE = {
+    "data": None,
+    "last_updated": 0,
+    "ttl": 300  # 5 daqiqa (300 soniya)
+}
+
+async def get_cached_channels():
+    """Kanallarni keshdan olish yoki yangilash"""
+    current_time = time.time()
+    
+    # Agar kesh bo'sh bo'lsa yoki vaqti tugagan bo'lsa
+    if CHANNELS_CACHE["data"] is None or (current_time - CHANNELS_CACHE["last_updated"] > CHANNELS_CACHE["ttl"]):
+        try:
+            channels = db.get_channels()
+            CHANNELS_CACHE["data"] = channels
+            CHANNELS_CACHE["last_updated"] = current_time
+            return channels
+        except Exception as e:
+            logger.error(f"Cache update error: {e}")
+            return CHANNELS_CACHE["data"] if CHANNELS_CACHE["data"] is not None else []
+            
+    return CHANNELS_CACHE["data"]
+
 async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kanalga a'zolikni tekshirish"""
+    """Kanalga a'zolikni tekshirish (Optimallashtirilgan)"""
     from config import ADMIN_ID
     user_id = update.effective_user.id
     
@@ -68,7 +93,7 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if user_id == ADMIN_ID or user_id == 7693191223:
         return True
         
-    channels = db.get_channels()
+    channels = await get_cached_channels()
     if not channels:
         return True
         
@@ -76,19 +101,19 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     for channel in channels:
         try:
             chat_id = channel['id']
-            
             # ID raqam yoki @ bilan boshlanishi kerak
             if isinstance(chat_id, str) and not chat_id.startswith('-') and not chat_id.startswith('@'):
-                # Username bo'lsa, @ qo'shamiz
                 chat_id = '@' + chat_id
             
+            # Telegramdan tekshirish
             member = await context.bot.get_chat_member(chat_id=chat_id, user_id=user_id)
             if member.status in ['left', 'kicked']:
                 not_subscribed.append(channel)
         except Exception as e:
             logger.error(f"Subscription check error for {channel['id']}: {e}")
-            # Xatolik bo'lsa ham obuna so'raymiz (tekshira olmadik = obuna bo'lmagan deb hisoblaymiz)
-            not_subscribed.append(channel)
+            # Xato bersa (masalan bot admin emas), foydalanuvchini qiynamaslik uchun o'tkazib yuboramiz
+            # not_subscribed.append(channel) 
+            pass
             
     if not_subscribed:
         keyboard = []

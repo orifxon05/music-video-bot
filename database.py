@@ -92,7 +92,7 @@ class Database:
             conn.close()
             return True
         except Exception as e:
-            print(f"Add user error: {e}")
+            # print(f"Add user error: {e}") # Loglarni to'ldirmaslik uchun o'chirildi
             return False
 
     def get_users(self):
