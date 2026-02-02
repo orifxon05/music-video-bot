@@ -143,62 +143,86 @@ class Downloader:
             return {"success": False, "error": str(e)}
 
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
-        """Cobalt API orqali yuklab olish (Ishonchli va 403 ni chetlab o'tadi)"""
-        try:
-            # Cobalt API URL - Agar .env'dan kelmasa asosiy URL ishlatiladi
-            api_url = COBALT_API if COBALT_API else "https://api.cobalt.tools/api/json"
-            
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "url": url,
-                "videoQuality": "720",
-                "downloadMode": "video" if is_video else "audio",
-                "filenameStyle": "basic"
-            }
-            
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=30)
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                # Cobalt'da status "stream", "redirect" yoki "tunnel" bo'lishi mumkin
-                download_url = data.get("url")
+        """Cobalt API orqali yuklab olish (Multi-server fallback)"""
+        
+        # Ishonchli Cobalt serverlari ro'yxati (Eng barqarorlari)
+        COBALT_SERVERS = [
+            "https://api.cobalt.tools/api/json",      # Rasmiy
+            "https://api.wuk.sh/api/json",            # Eng ishonchli
+            "https://cobalt.api.redstream.me/api/json",
+            "https://cobalt.xyzen.dev/api/json",
+            "https://cobalt.wix.ovh/api/json",        # Yangi
+            "https://cobalt.executor.ws/api/json",     # Yangi
+            "https://cobalt.kwiatekmiki.pl/api/json"
+        ]
+        
+        # Agar .env da alohida server ko'rsatilgan bo'lsa, uni birinchiga qo'yamiz
+        if COBALT_API and COBALT_API not in COBALT_SERVERS:
+            COBALT_SERVERS.insert(0, COBALT_API)
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        
+        loop = asyncio.get_event_loop()
+        
+        last_error = ""
+
+        for api_url in COBALT_SERVERS:
+            try:
+                # logger.info(f"🔄 Cobalt serveri sinab ko'rilmoqda: {api_url}")
                 
-                if download_url:
-                    # Faylni yuklab olish
-                    ext = "mp4" if is_video else "mp3"
-                    filepath = os.path.join(self.download_path, f"{user_id}_cobalt_{os.urandom(4).hex()}.{ext}")
+                payload = {
+                    "url": url,
+                    "videoQuality": "720",
+                    "downloadMode": "video" if is_video else "audio",
+                    "filenameStyle": "basic"
+                }
+                
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=10)
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    download_url = data.get("url")
                     
-                    file_res = await loop.run_in_executor(
-                        None,
-                        lambda: requests.get(download_url, stream=True, timeout=60)
-                    )
-                    
-                    if file_res.status_code == 200:
-                        with open(filepath, 'wb') as f:
-                            for chunk in file_res.iter_content(chunk_size=8192):
-                                if chunk:
-                                    f.write(chunk)
+                    if download_url:
+                        # Faylni yuklab olish
+                        ext = "mp4" if is_video else "mp3"
+                        filepath = os.path.join(self.download_path, f"{user_id}_cobalt_{os.urandom(4).hex()}.{ext}")
                         
-                        return {
-                            "success": True,
-                            "filepath": filepath,
-                            "title": "Video" if is_video else "Audio",
-                            "duration": 0,
-                            "uploader": "Cobalt API",
-                            "platform": self.get_platform(url),
-                        }
-            
-            return {"success": False, "error": f"Cobalt xatosi (Status: {response.status_code})"}
-        except Exception as e:
-            logger.error(f"Cobalt process xatosi: {e}")
-            return {"success": False, "error": f"Tashqi API xatosi: {str(e)[:50]}"}
+                        file_res = await loop.run_in_executor(
+                            None,
+                            lambda: requests.get(download_url, stream=True, timeout=60)
+                        )
+                        
+                        if file_res.status_code == 200:
+                            with open(filepath, 'wb') as f:
+                                for chunk in file_res.iter_content(chunk_size=8192):
+                                    if chunk:
+                                        f.write(chunk)
+                            
+                            return {
+                                "success": True,
+                                "filepath": filepath,
+                                "title": "Video" if is_video else "Audio",
+                                "duration": 0,
+                                "uploader": "Cobalt API",
+                                "platform": self.get_platform(url),
+                            }
+                
+                last_error = f"Server {api_url} error: {response.status_code}"
+                
+            except Exception as e:
+                last_error = str(e)
+                continue
+        
+        logger.error(f"❌ Barcha Cobalt serverlari ishlamadi. Oxirgi xato: {last_error}")
+        return {"success": False, "error": f"Barcha serverlar band: {last_error[:50]}"}
     
     async def download_audio(self, url: str, user_id: int) -> dict:
         """Audio yuklab olish - TEZ"""

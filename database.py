@@ -1,241 +1,166 @@
-"""PostgreSQL Database moduli"""
-import os
-import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import os
+import logging
+from config import DATABASE_URL, ADMIN_ID
 
+# Loggingni sozlash
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self):
-        self.database_url = os.getenv("DATABASE_URL")
-        if self.database_url:
-            logger.info(f"DATABASE_URL topildi: {self.database_url[:30]}...")
-        else:
-            logger.warning("DATABASE_URL topilmadi!")
-        self._init_db()
+        self.database_url = DATABASE_URL
+        try:
+            # SSL rejimini yoqish (Render uchun shart)
+            if self.database_url:
+                self.conn = psycopg2.connect(self.database_url, sslmode='require')
+                self.create_tables()
+                logger.info("✅ Database ulandi")
+            else:
+                logger.error("❌ DATABASE_URL topilmadi!")
+                self.conn = None
+        except Exception as e:
+            logger.error(f"Database init error: {e}")
+            self.conn = None
 
     def _get_connection(self):
-        """Database ulanishini olish"""
-        # Railway PostgreSQL uchun SSL
-        return psycopg2.connect(
-            self.database_url, 
-            cursor_factory=RealDictCursor,
-            sslmode='require'
-        )
-
-    def _init_db(self):
-        """Jadvallarni yaratish"""
+        """Yangi ulanish yaratish (Thread safety uchun)"""
         if not self.database_url:
-            print("DATABASE_URL topilmadi, lokal rejimda ishlamoqda")
-            return
-        
+            return None
         try:
-            conn = self._get_connection()
-            cur = conn.cursor()
+            return psycopg2.connect(self.database_url, sslmode='require')
+        except Exception as e:
+            logger.error(f"Connection error: {e}")
+            return None
+
+    def create_tables(self):
+        """Jadvallarni yaratish"""
+        if not self.conn: return
+        try:
+            cur = self.conn.cursor()
             
             # Users jadvali
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    user_id BIGINT UNIQUE NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    id BIGINT PRIMARY KEY,
+                    full_name TEXT,
+                    username TEXT,
+                    joined_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_admin BOOLEAN DEFAULT FALSE
                 )
             """)
             
-            # Channels jadvali
+            # Channels jadvali - Majburiy obuna uchun
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS channels (
                     id SERIAL PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL,
-                    channel_id VARCHAR(50) NOT NULL,
-                    url VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    channel_id TEXT NOT NULL,
+                    name TEXT,
+                    url TEXT
                 )
             """)
             
-            # Stats jadvali
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS stats (
-                    id SERIAL PRIMARY KEY,
-                    key VARCHAR(50) UNIQUE NOT NULL,
-                    value INTEGER DEFAULT 0
-                )
-            """)
+            # Admins (oddiy ro'yxat sifatida)
+            # Dastlabki adminni qo'shish
+            cur.execute("INSERT INTO users (id, is_admin) VALUES (%s, TRUE) ON CONFLICT (id) DO UPDATE SET is_admin = TRUE", (ADMIN_ID,))
             
-            # total_downloads boshlang'ich qiymat
-            cur.execute("""
-                INSERT INTO stats (key, value) VALUES ('total_downloads', 0)
-                ON CONFLICT (key) DO NOTHING
-            """)
-            
-            conn.commit()
+            self.conn.commit()
             cur.close()
-            conn.close()
-            print("PostgreSQL database tayyor!")
         except Exception as e:
-            print(f"Database init error: {e}")
+            logger.error(f"Create tables error: {e}")
 
-    def add_user(self, user_id):
+    def add_user(self, user_id, full_name, username):
         """Foydalanuvchi qo'shish"""
-        if not self.database_url:
-            return False
+        conn = self._get_connection()
+        if not conn: return False
         try:
-            conn = self._get_connection()
             cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO users (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING",
-                (user_id,)
-            )
+            cur.execute("""
+                INSERT INTO users (id, full_name, username)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (id) DO UPDATE 
+                SET full_name = EXCLUDED.full_name, 
+                    username = EXCLUDED.username
+            """, (user_id, full_name, username))
             conn.commit()
             cur.close()
             conn.close()
             return True
         except Exception as e:
-            # print(f"Add user error: {e}") # Loglarni to'ldirmaslik uchun o'chirildi
+            # logger.error(f"Add user error: {e}") 
             return False
 
-    def get_users(self):
-        """Barcha foydalanuvchilar"""
-        if not self.database_url:
-            return []
+    def get_users_count(self):
+        """Foydalanuvchilar sonini olish"""
+        conn = self._get_connection()
+        if not conn: return 0
         try:
-            conn = self._get_connection()
             cur = conn.cursor()
-            cur.execute("SELECT user_id FROM users")
-            users = [row['user_id'] for row in cur.fetchall()]
-            cur.close()
+            cur.execute("SELECT COUNT(*) FROM users")
+            count = cur.fetchone()[0]
+            conn.close()
+            return count
+        except Exception as e:
+            logger.error(f"Get users count error: {e}")
+            return 0
+
+    def get_all_users(self):
+        """Barcha foydalanuvchilarni olish (Broadcast uchun)"""
+        conn = self._get_connection()
+        if not conn: return []
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM users")
+            users = [row[0] for row in cur.fetchall()]
             conn.close()
             return users
         except Exception as e:
-            print(f"Get users error: {e}")
+            logger.error(f"Get all users error: {e}")
             return []
 
-    def add_channel(self, name, channel_id, url):
+    def add_channel(self, channel_id, name, url):
         """Kanal qo'shish"""
-        logger.info(f"Kanal qo'shilmoqda: {name}, {channel_id}, {url}")
-        if not self.database_url:
-            logger.error("DATABASE_URL yo'q!")
-            return False
+        conn = self._get_connection()
+        if not conn: return False
         try:
-            conn = self._get_connection()
             cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO channels (name, channel_id, url) VALUES (%s, %s, %s)",
-                (name, channel_id, url)
-            )
+            cur.execute("INSERT INTO channels (channel_id, name, url) VALUES (%s, %s, %s)", (channel_id, name, url))
             conn.commit()
-            cur.close()
             conn.close()
-            logger.info("Kanal muvaffaqiyatli qo'shildi!")
             return True
         except Exception as e:
             logger.error(f"Add channel error: {e}")
             return False
 
     def get_channels(self):
-        """Barcha kanallar"""
-        if not self.database_url:
-            logger.warning("get_channels: DATABASE_URL yo'q!")
-            return []
+        """Kanallar ro'yxatini olish"""
+        conn = self._get_connection()
+        if not conn: return []
         try:
-            conn = self._get_connection()
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            # channel_id ni 'id' deb qaytaramiz (kodimiz shuni kutadi)
             cur.execute("SELECT name, channel_id as id, url FROM channels ORDER BY id")
             channels = [dict(row) for row in cur.fetchall()]
-            cur.close()
             conn.close()
-            logger.info(f"Kanallar topildi: {len(channels)} ta")
             return channels
         except Exception as e:
             logger.error(f"Get channels error: {e}")
             return []
 
-    def remove_channel(self, index):
-        """Kanalni o'chirish (index bo'yicha)"""
-        if not self.database_url:
-            return False
+    def remove_channel(self, channel_id):
+        """Kanalni o'chirish"""
+        conn = self._get_connection()
+        if not conn: return False
         try:
-            channels = self.get_channels()
-            if 0 <= index < len(channels):
-                channel = channels[index]
-                conn = self._get_connection()
-                cur = conn.cursor()
-                cur.execute(
-                    "DELETE FROM channels WHERE channel_id = %s AND name = %s",
-                    (channel['id'], channel['name'])
-                )
-                conn.commit()
-                cur.close()
-                conn.close()
-                return True
-            return False
-        except Exception as e:
-            print(f"Remove channel error: {e}")
-            return False
-
-    def clear_channels(self):
-        """Barcha kanallarni o'chirish"""
-        if not self.database_url:
-            return
-        try:
-            conn = self._get_connection()
             cur = conn.cursor()
-            cur.execute("DELETE FROM channels")
+            cur.execute("DELETE FROM channels WHERE channel_id = %s", (str(channel_id),))
             conn.commit()
-            cur.close()
             conn.close()
+            return True
         except Exception as e:
-            print(f"Clear channels error: {e}")
+            logger.error(f"Remove channel error: {e}")
+            return False
 
-    def increment_downloads(self):
-        """Yuklanishlar sonini oshirish"""
-        if not self.database_url:
-            return
-        try:
-            conn = self._get_connection()
-            cur = conn.cursor()
-            cur.execute(
-                "UPDATE stats SET value = value + 1 WHERE key = 'total_downloads'"
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
-        except Exception as e:
-            print(f"Increment downloads error: {e}")
-
-    def get_stats(self):
-        """Statistikani olish"""
-        if not self.database_url:
-            return {"total_users": 0, "total_downloads": 0, "channels_count": 0}
-        try:
-            conn = self._get_connection()
-            cur = conn.cursor()
-            
-            # Users count
-            cur.execute("SELECT COUNT(*) as count FROM users")
-            total_users = cur.fetchone()['count']
-            
-            # Downloads
-            cur.execute("SELECT value FROM stats WHERE key = 'total_downloads'")
-            row = cur.fetchone()
-            total_downloads = row['value'] if row else 0
-            
-            # Channels count
-            cur.execute("SELECT COUNT(*) as count FROM channels")
-            channels_count = cur.fetchone()['count']
-            
-            cur.close()
-            conn.close()
-            
-            return {
-                "total_users": total_users,
-                "total_downloads": total_downloads,
-                "channels_count": channels_count
-            }
-        except Exception as e:
-            print(f"Get stats error: {e}")
-            return {"total_users": 0, "total_downloads": 0, "channels_count": 0}
-
-
+# Global obyekt
 db = Database()
