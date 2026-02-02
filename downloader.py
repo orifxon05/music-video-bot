@@ -112,6 +112,17 @@ class Downloader:
             instagram_opts = self._get_instagram_opts()
             ydl_opts.update(instagram_opts)
         
+        # YouTube va Facebook uchun birinchi Cobaltni ishlatamiz (bloklanmaslik uchun)
+        is_priority_cobalt = COBALT_ENABLED and (platform in ["youtube", "facebook", "instagram"])
+        
+        if is_priority_cobalt:
+             logger.info(f"⚡ Video: {platform} uchun Cobalt API ishlatilmoqda (Priority)...")
+             cobalt_res = await self.download_with_cobalt(url, user_id, is_video=True)
+             if cobalt_res.get("success"):
+                 return cobalt_res
+             # Agar Cobalt o'xshamasa, yt-dlp ga o'tamiz
+             logger.warning("⚠️ Cobalt o'xshamadi, yt-dlp ishlatilmoqda...")
+
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
@@ -119,10 +130,10 @@ class Downloader:
                 lambda: self._download_with_yt_dlp(url, ydl_opts)
             )
             
-            # Agar muvaffaqiyatsiz bo'lsa yoki 403 xatosi bo'lsa Cobalt ishlatamiz
-            if not result.get("success"):
+            # Agar muvaffaqiyatsiz bo'lsa va hali Cobalt ishlatilmagan bo'lsa
+            if not result.get("success") and not is_priority_cobalt:
                  err = str(result.get("error", "")).lower()
-                 if COBALT_ENABLED: # Har qanday xatoda Cobaltni sinab ko'rish (ayniqsa 403)
+                 if COBALT_ENABLED: 
                      logger.info(f"⚡ Video: yt-dlp xatosi ({err}). Cobalt ishlatilmoqda...")
                      cobalt_res = await self.download_with_cobalt(url, user_id, is_video=True)
                      if cobalt_res.get("success"):
@@ -228,6 +239,17 @@ class Downloader:
             instagram_opts = self._get_instagram_opts()
             ydl_opts.update(instagram_opts)
         
+        # YouTube va Facebook uchun birinchi Cobaltni ishlatamiz (Audio)
+        platform = self.get_platform(url)
+        is_priority_cobalt = COBALT_ENABLED and (platform in ["youtube", "facebook", "instagram"])
+        
+        if is_priority_cobalt:
+             logger.info(f"⚡ Audio: {platform} uchun Cobalt API ishlatilmoqda (Priority)...")
+             cobalt_res = await self.download_with_cobalt(url, user_id, is_video=False)
+             if cobalt_res.get("success"):
+                 return cobalt_res
+             logger.warning("⚠️ Cobalt o'xshamadi, yt-dlp ishlatilmoqda...")
+
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
@@ -235,8 +257,8 @@ class Downloader:
                 lambda: self._download_audio_simple(url, ydl_opts)
             )
             
-            # Agar yt-dlp xato bergan bo'lsa va Cobalt yoqilgan bo'lsa
-            if not result.get("success"):
+            # Agar yt-dlp xato bergan bo'lsa va hali Cobalt ishlatilmagan bo'lsa
+            if not result.get("success") and not is_priority_cobalt:
                 err = str(result.get("error", "")).lower()
                 if COBALT_ENABLED: # Har qanday xatoda Cobaltni sinab ko'rish
                     logger.info(f"⚡ Audio: yt-dlp xatosi ({err}). Cobalt ishlatilmoqda...")
