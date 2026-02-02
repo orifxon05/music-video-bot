@@ -10,6 +10,9 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 # Admin ID
 ADMIN_ID = int(os.getenv("ADMIN_ID", "7693191223"))
 
+# Database URL (Render/Koyeb)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 # Supported platforms
 SUPPORTED_PLATFORMS = {
     "instagram": ["instagram.com", "instagr.am"],
