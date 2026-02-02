@@ -1,65 +1,24 @@
-"""Remix va Cover versiyalarini topish moduli"""
-import asyncio
-from youtubesearchpython import VideosSearch
+"""Remix va Cover qidiruv moduli"""
+import logging
+from ytmusicapi import YTMusic
 
+logger = logging.getLogger(__name__)
 
 class RemixFinder:
-    """YouTube'dan remix va cover topish"""
-    
     def __init__(self):
-        self.max_results = 8
-    
-    async def find_remixes(self, title: str, artist: str) -> dict:
-        """Remix versiyalarini topish"""
-        try:
-            search_query = f"{title} {artist} remix audio"
-            results = await self._search_youtube(search_query)
-            
-            return {
-                "success": True,
-                "type": "remix",
-                "query": search_query,
-                "results": results,
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    
-    async def find_covers(self, title: str, artist: str) -> dict:
-        """Cover versiyalarini topish"""
-        try:
-            search_query = f"{title} {artist} cover audio"
-            results = await self._search_youtube(search_query)
-            
-            return {
-                "success": True,
-                "type": "cover",
-                "query": search_query,
-                "results": results,
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        self.yt = YTMusic()
     
     async def find_all_versions(self, title: str, artist: str) -> dict:
-        """Remix va Cover'larni birga topish"""
+        """Remix va Cover versiyalarini topish"""
         try:
-            # Parallel qidirish
-            remix_task = self.find_remixes(title, artist)
-            cover_task = self.find_covers(title, artist)
-            
-            remix_results, cover_results = await asyncio.gather(
-                remix_task, cover_task
-            )
+            query = f"{title} {artist}"
+            remixes = await self._search_type(f"{query} remix", "songs", limit=10)
+            covers = await self._search_type(f"{query} cover", "videos", limit=10)
             
             return {
                 "success": True,
                 "title": title,
                 "artist": artist,
-                "remixes": remix_results.get("results", []),
-                "covers": cover_results.get("results", []),
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-    
     async def _search_youtube(self, query: str) -> list:
         """YouTube'da qidirish"""
         try:
