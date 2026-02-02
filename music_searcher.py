@@ -1,59 +1,36 @@
-"""Qo'shiq qidirish moduli - nom bo'yicha"""
-import asyncio
-import os
-import yt_dlp
+"""Musiqa qidirish moduli (ytmusicapi)"""
+import logging
+from ytmusicapi import YTMusic
 
+logger = logging.getLogger(__name__)
 
 class MusicSearcher:
-    """Qo'shiq nomi bo'yicha qidirish (yt-dlp ishlatadi - eng barqaror)"""
+    """Musiqa qidirish klassi (YTMusic API)"""
     
     def __init__(self):
-        self.max_results = 10
-        self.ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': True,
-            'skip_download': True,
-            'source_address': '0.0.0.0', # IPv4
-            'nocheckcertificate': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['ios', 'android', 'mweb', 'web'],
-                }
-            }
-        }
-        
-        # Cookies va iOS User-Agent (Search uchun ham bir xil bo'lishi shart)
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        cookies_path = os.path.join(current_dir, 'youtube_cookies.txt')
-        if os.path.exists(cookies_path):
-            self.ydl_opts['cookiefile'] = cookies_path
-            self.ydl_opts['user_agent'] = 'com.google.ios.youtube/19.29.1 (iPhone16,2; iOS 17.5.1; gzip)'
-    
-    async def search_by_name(self, query: str) -> dict:
-        """Qo'shiq nomini qidirish"""
+        self.yt = YTMusic() # API ni initsializatsiya qilish
+
+    async def search_by_name(self, query: str, limit: int = 10) -> dict:
+        """Musiqa nomi bo'yicha qidirish (YouTube Music)"""
         try:
             query = query.strip()
             if not query:
                 return {"success": False, "error": "Bo'sh qidiruv"}
+
+            # 1. Asosiy qidiruv (Qo'shiqlar)
+            try:
+                results = self.yt.search(query, filter="songs", limit=limit)
+            except Exception as e:
+                logger.error(f"YTMusic songs search error: {e}")
+                results = []
             
-            # yt-dlp search query
-            search_query = f"ytsearch{self.max_results}:{query}"
-            
-            loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(
-                None,
-                lambda: self._extract_info(search_query)
-            )
-            
-            if results and 'entries' in results:
-            # Asosiy qidiruv
-            results = self.yt.search(query, filter="songs", limit=limit)
-            
-            # Agar qo'shiqlar topilmasa, videolar qidirib ko'ramiz
+            # 2. Agar qo'shiqlar topilmasa, videolar qidirib ko'ramiz
             if not results:
-                results = self.yt.search(query, filter="videos", limit=limit)
+                try:
+                    results = self.yt.search(query, filter="videos", limit=limit)
+                except Exception as e:
+                    logger.error(f"YTMusic videos search error: {e}")
+                    results = []
                 
             formatted_results = []
             
@@ -90,22 +67,5 @@ class MusicSearcher:
                 return {"success": False, "error": "Hech narsa topilmadi"}
                 
         except Exception as e:
-            logger.error(f"Search error: {e}")
+            logger.error(f"Global search error: {e}")
             return {"success": False, "error": str(e)}
-    
-    def _extract_info(self, query: str):
-    def _format_duration(self, seconds) -> str:
-        if not seconds: return "Nomalum"
-        seconds = int(seconds)
-        minutes = seconds // 60
-        secs = seconds % 60
-        return f"{minutes}:{secs:02d}"
-
-    def _format_views(self, views) -> str:
-        if not views: return "0"
-        views = int(views)
-        if views >= 1000000:
-            return f"{views/1000000:.1f}M"
-        if views >= 1000:
-            return f"{views/1000:.1f}K"
-        return str(views)
