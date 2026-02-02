@@ -19,51 +19,51 @@ class RemixFinder:
                 "success": True,
                 "title": title,
                 "artist": artist,
-    async def _search_youtube(self, query: str) -> list:
-        """YouTube'da qidirish"""
+                "remixes": remixes,
+                "covers": covers
+            }
+        except Exception as e:
+            logger.error(f"Remix finding error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _search_type(self, query: str, filter_type: str, limit: int) -> list:
         try:
-            loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(
-                None,
-                lambda: self._do_search(query)
-            )
-            return results
-        except Exception:
-            return []
-    
-    def _do_search(self, query: str) -> list:
-        """Qidirish bajarish"""
-        try:
-            search = VideosSearch(query, limit=self.max_results)
-            raw_results = search.result()
+            # Synchronous call
+            results = self.yt.search(query, filter=filter_type, limit=limit)
             
-            videos = []
-            for video in raw_results.get('result', []):
-                videos.append({
-                    "title": video.get('title', 'Noma\'lum'),
-                    "url": video.get('link', ''),
-                    "duration": video.get('duration', ''),
-                    "views": video.get('viewCount', {}).get('short', ''),
-                    "channel": video.get('channel', {}).get('name', ''),
-                    "thumbnail": video.get('thumbnails', [{}])[0].get('url', ''),
-                    "published": video.get('publishedTime', ''),
+            formatted = []
+            for item in results:
+                video_id = item.get("videoId")
+                if not video_id:
+                    continue
+                    
+                title = item.get("title", "Nomalum")
+                artists = item.get("artists", [])
+                artist_name = artists[0].get("name", "") if artists else ""
+                
+                url = f"https://www.youtube.com/watch?v={video_id}"
+                
+                formatted.append({
+                    "title": f"{artist_name} - {title}" if artist_name else title,
+                    "url": url,
+                    "duration": item.get("duration", "0:00"),
+                    "channel": artist_name or "YT Music",
+                    "id": video_id,
+                    "views": "N/A" # YTMusic search doesn't always return views cleanly in search
                 })
-            
-            return videos
-        except Exception:
+            return formatted
+        except Exception as e:
+            logger.error(f"Inner search error ({query}): {e}")
             return []
-    
+
     def format_results(self, results: dict) -> str:
         """Natijalarni formatlash"""
         if not results.get('success'):
             return f"❌ {results.get('error', 'Qidirishda xatolik')}"
         
-        text = f"""🔄 **Remix va Cover versiyalari**
-
-🎵 **Asl qo'shiq:** {results['title']}
-👤 **Ijrochi:** {results['artist']}
-
-"""
+        text = f"🔄 **Remix va Cover versiyalari**\n\n"
+        text += f"🎵 **Asl qo'shiq:** {results.get('title', 'Nomalum')}\n"
+        text += f"👤 **Ijrochi:** {results.get('artist', 'Nomalum')}\n\n"
         
         # Remixlar
         remixes = results.get('remixes', [])
@@ -71,7 +71,7 @@ class RemixFinder:
             text += "🎧 **Remix versiyalari:**\n"
             for i, remix in enumerate(remixes, 1):
                 text += f"{i}. [{remix['title']}]({remix['url']})\n"
-                text += f"   👁 {remix['views']} • ⏱ {remix['duration']}\n"
+                text += f"   ⏱ {remix['duration']}\n"
             text += "\n"
         else:
             text += "🎧 **Remix:** Topilmadi\n\n"
@@ -82,7 +82,7 @@ class RemixFinder:
             text += "🎤 **Cover versiyalari:**\n"
             for i, cover in enumerate(covers, 1):
                 text += f"{i}. [{cover['title']}]({cover['url']})\n"
-                text += f"   👁 {cover['views']} • ⏱ {cover['duration']}\n"
+                text += f"   ⏱ {cover['duration']}\n"
         else:
             text += "🎤 **Cover:** Topilmadi"
         
