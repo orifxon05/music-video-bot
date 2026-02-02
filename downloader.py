@@ -172,18 +172,24 @@ class Downloader:
 
         for api_url in COBALT_SERVERS:
             try:
-                # logger.info(f"🔄 Cobalt serveri sinab ko'rilmoqda: {api_url}")
-                
+                # Payloadni universallashtirish (v7 va v10 uchun)
                 payload = {
                     "url": url,
-                    "videoQuality": "720",
-                    "downloadMode": "video" if is_video else "audio",
                     "filenameStyle": "basic"
                 }
+
+                if is_video:
+                    payload["videoQuality"] = "720"
+                    payload["quality"] = "720" # Yangi versiyalar uchun
+                    payload["downloadMode"] = "auto"
+                else:
+                    payload["downloadMode"] = "audio"
+                    payload["isAudioOnly"] = True # Eski versiyalar uchun
+                    payload["audioFormat"] = "mp3"
                 
                 response = await loop.run_in_executor(
                     None,
-                    lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=10)
+                    lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=20)
                 )
                 
                 if response.status_code == 200:
@@ -206,6 +212,7 @@ class Downloader:
                                     if chunk:
                                         f.write(chunk)
                             
+                            logger.info(f"✅ Cobalt orqali yuklandi: {api_url}")
                             return {
                                 "success": True,
                                 "filepath": filepath,
@@ -215,14 +222,18 @@ class Downloader:
                                 "platform": self.get_platform(url),
                             }
                 
-                last_error = f"Server {api_url} error: {response.status_code}"
+                # Agar o'xshamasa, sababini logga yozamiz
+                error_text = response.text[:200] if response.text else "No content"
+                logger.warning(f"⚠️ Server {api_url} xato: {response.status_code} - {error_text}")
+                last_error = f"{response.status_code} - {error_text}"
                 
             except Exception as e:
+                logger.warning(f"⚠️ Server {api_url} ulanish xatosi: {e}")
                 last_error = str(e)
                 continue
         
         logger.error(f"❌ Barcha Cobalt serverlari ishlamadi. Oxirgi xato: {last_error}")
-        return {"success": False, "error": f"Barcha serverlar band: {last_error[:50]}"}
+        return {"success": False, "error": f"Serverlar band. Xato: {last_error[:50]}"}
     
     async def download_audio(self, url: str, user_id: int) -> dict:
         """Audio yuklab olish - TEZ"""
