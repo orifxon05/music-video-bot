@@ -119,11 +119,11 @@ class Downloader:
                 lambda: self._download_with_yt_dlp(url, ydl_opts)
             )
             
-            # Agar 403 xatosi bo'lsa Cobalt ishlatamiz
-            if not result.get("success") and COBALT_ENABLED:
+            # Agar muvaffaqiyatsiz bo'lsa yoki 403 xatosi bo'lsa Cobalt ishlatamiz
+            if not result.get("success"):
                  err = str(result.get("error", "")).lower()
-                 if "403" in err or "forbidden" in err:
-                     logger.info("⚡ Video: yt-dlp 403 xato. Cobalt ishlatilmoqda...")
+                 if COBALT_ENABLED: # Har qanday xatoda Cobaltni sinab ko'rish (ayniqsa 403)
+                     logger.info(f"⚡ Video: yt-dlp xatosi ({err}). Cobalt ishlatilmoqda...")
                      cobalt_res = await self.download_with_cobalt(url, user_id, is_video=True)
                      if cobalt_res.get("success"):
                          return cobalt_res
@@ -235,11 +235,11 @@ class Downloader:
                 lambda: self._download_audio_simple(url, ydl_opts)
             )
             
-            # Agar yt-dlp 403 xato bergan bo'lsa va Cobalt yoqilgan bo'lsa
-            if not result.get("success") and COBALT_ENABLED:
+            # Agar yt-dlp xato bergan bo'lsa va Cobalt yoqilgan bo'lsa
+            if not result.get("success"):
                 err = str(result.get("error", "")).lower()
-                if "403" in err or "forbidden" in err:
-                    logger.info("⚡ Audio: yt-dlp 403 xato. Cobalt ishlatilmoqda...")
+                if COBALT_ENABLED: # Har qanday xatoda Cobaltni sinab ko'rish
+                    logger.info(f"⚡ Audio: yt-dlp xatosi ({err}). Cobalt ishlatilmoqda...")
                     cobalt_res = await self.download_with_cobalt(url, user_id, is_video=False)
                     if cobalt_res.get("success"):
                         return cobalt_res

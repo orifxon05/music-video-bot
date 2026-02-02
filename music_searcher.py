@@ -48,37 +48,52 @@ class MusicSearcher:
             )
             
             if results and 'entries' in results:
-                formatted_results = []
-                for entry in results['entries']:
-                    if not entry: continue
-                    
-                    formatted_results.append({
-                        "title": entry.get('title', 'Nomalum'),
-                        "url": entry.get('url') or entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}",
-                        "duration": self._format_duration(entry.get('duration')),
-                        "views": self._format_views(entry.get('view_count')),
-                        "channel": entry.get('uploader', 'Nomalum'),
-                        "id": entry.get('id', ''),
-                    })
-                
-                if formatted_results:
-                    return {
-                        "success": True,
-                        "query": query,
-                        "results": formatted_results,
-                        "count": len(formatted_results),
-                    }
+            # Asosiy qidiruv
+            results = self.yt.search(query, filter="songs", limit=limit)
             
-            return {"success": False, "error": "Hech narsa topilmadi"}
+            # Agar qo'shiqlar topilmasa, videolar qidirib ko'ramiz
+            if not results:
+                results = self.yt.search(query, filter="videos", limit=limit)
+                
+            formatted_results = []
+            
+            for item in results:
+                # VideoID olish
+                video_id = item.get("videoId")
+                if not video_id:
+                    continue
+                    
+                title = item.get("title", "Nomalum")
+                
+                # Artist nomini olish
+                artists = item.get("artists", [])
+                artist_name = ""
+                if artists:
+                    artist_name = artists[0].get("name", "")
+                
+                # Davomiylik
+                duration = item.get("duration", "0:00")
+                
+                # Link
+                url = f"https://www.youtube.com/watch?v={video_id}"
+                
+                formatted_results.append({
+                    "title": f"{artist_name} - {title}" if artist_name else title,
+                    "url": url,
+                    "duration": duration,
+                    "id": video_id
+                })
+            
+            if formatted_results:
+                return {"success": True, "results": formatted_results}
+            else:
+                return {"success": False, "error": "Hech narsa topilmadi"}
                 
         except Exception as e:
-            print(f"DEBUG: yt-dlp search error: {e}")
+            logger.error(f"Search error: {e}")
             return {"success": False, "error": str(e)}
     
     def _extract_info(self, query: str):
-        with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
-            return ydl.extract_info(query, download=False)
-
     def _format_duration(self, seconds) -> str:
         if not seconds: return "Nomalum"
         seconds = int(seconds)
