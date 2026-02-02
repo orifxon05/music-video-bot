@@ -140,7 +140,9 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start buyrug'i"""
     user_id = update.effective_user.id
-    db.add_user(user_id)
+    first_name = update.effective_user.first_name
+    username = update.effective_user.username
+    db.add_user(user_id, first_name, username)
     
     if not await check_subscription(update, context):
         return
@@ -214,7 +216,9 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
     """Link yuborilganda"""
     message = update.effective_message
     user_id = update.effective_user.id
-    db.add_user(user_id)
+    first_name = update.effective_user.first_name
+    username = update.effective_user.username
+    db.add_user(user_id, first_name, username)
     if not await check_subscription(update, context):
         return
         
@@ -436,7 +440,9 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Audio yuborilganda (Shazam)"""
     message = update.message
     user_id = message.from_user.id
-    db.add_user(user_id)
+    first_name = update.effective_user.first_name
+    username = update.effective_user.username
+    db.add_user(user_id, first_name, username)
     if not await check_subscription(update, context):
         return
     
@@ -1030,7 +1036,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Matn xabarlari"""
     text = update.message.text.strip()
     user_id = update.message.from_user.id
-    db.add_user(user_id)
+    first_name = update.effective_user.first_name
+    username = update.effective_user.username
+    db.add_user(user_id, first_name, username)
     
     # Admin inputlarini tekshirish (Broadcast yoki Kanal qo'shish uchun)
     from config import ADMIN_ID
