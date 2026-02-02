@@ -189,7 +189,7 @@ class Downloader:
                 
                 response = await loop.run_in_executor(
                     None,
-                    lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=20)
+                    lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=30)
                 )
                 
                 if response.status_code == 200:
