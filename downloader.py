@@ -145,14 +145,14 @@ class Downloader:
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
         """Cobalt API orqali yuklab olish (Multi-server fallback)"""
         
-        # Ishonchli Cobalt serverlari ro'yxati (Eng barqarorlari)
+        # Ishonchli Cobalt serverlari ro'yxati (Tezkorlari oldinda)
         COBALT_SERVERS = [
-            "https://api.cobalt.tools/api/json",      # Rasmiy
-            "https://api.wuk.sh/api/json",            # Eng ishonchli
+            "https://api.wuk.sh/api/json",            # Eng tez va barqaror
+            "https://cobalt.executor.ws/api/json",     # Yangi va tez
+            "https://cobalt.wix.ovh/api/json",
+            "https://api.cobalt.tools/api/json",      # Rasmiy (ko'pincha band)
             "https://cobalt.api.redstream.me/api/json",
             "https://cobalt.xyzen.dev/api/json",
-            "https://cobalt.wix.ovh/api/json",        # Yangi
-            "https://cobalt.executor.ws/api/json",     # Yangi
             "https://cobalt.kwiatekmiki.pl/api/json"
         ]
         
@@ -180,16 +180,17 @@ class Downloader:
 
                 if is_video:
                     payload["videoQuality"] = "720"
-                    payload["quality"] = "720" # Yangi versiyalar uchun
+                    payload["quality"] = "720" 
                     payload["downloadMode"] = "auto"
                 else:
                     payload["downloadMode"] = "audio"
-                    payload["isAudioOnly"] = True # Eski versiyalar uchun
+                    payload["isAudioOnly"] = True
                     payload["audioFormat"] = "mp3"
                 
+                # TIMEOUT: 6 soniya (Juda tez o'tishi kerak)
                 response = await loop.run_in_executor(
                     None,
-                    lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=30)
+                    lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=6)
                 )
                 
                 if response.status_code == 200:
