@@ -14,6 +14,14 @@ class Downloader:
         if not os.path.exists(self.download_path):
             os.makedirs(self.download_path)
 
+    def is_supported_url(self, url: str) -> bool:
+        """Link qo'llab-quvvatlanishini tekshirish"""
+        supported_domains = [
+            'youtube.com', 'youtu.be', 'instagram.com', 'tiktok.com',
+            'facebook.com', 'twitter.com', 'x.com', 'soundcloud.com'
+        ]
+        return any(domain in url.lower() for domain in supported_domains)
+
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
         """Ishonchli Cobalt va muqobil API serverlari orqali yuklash"""
         

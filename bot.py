@@ -1057,9 +1057,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if not isinstance(item, dict): continue
                     
                     item_title = str(item.get("title", "Audio"))[:35]
-                    item_duration = str(item.get("duration", "0:00"))
+                    duration = item.get("duration")
+                    duration_text = f" ({duration})" if duration and str(duration).lower() != "none" else ""
                     
-                    btn_text = f"🎵 {item_title}... ({item_duration})"
+                    btn_text = f"🎵 {item_title}{duration_text}"
                     keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"dl_{i}_{user_id}")])
                 
                 if not keyboard:
