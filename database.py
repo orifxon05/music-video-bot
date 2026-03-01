@@ -103,6 +103,12 @@ class Database:
                     total_downloads INTEGER DEFAULT 0
                 )
             """)
+            # Ustun borligini tekshirish (fallback)
+            try:
+                cur.execute("ALTER TABLE stats ADD COLUMN IF NOT EXISTS total_downloads INTEGER DEFAULT 0")
+            except:
+                pass
+            
             cur.execute("INSERT INTO stats (id, total_downloads) VALUES (1, 0) ON CONFLICT (id) DO NOTHING")
             
             # Dastlabki adminni qo'shish
