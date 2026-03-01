@@ -1146,7 +1146,14 @@ def main():
         # ==================== WEBHOOK YOKI POLLING ====================
         if WEBHOOK_URL:
             # WEBHOOK rejimi (Render/Production uchun)
-            webhook_url = f"{WEBHOOK_URL}/webhook"
+            # URL ni tozalash (agar foydalanuvchi WEBHOOK_URL = ... deb yozgan bo'lsa)
+            webhook_url = WEBHOOK_URL
+            if " = " in webhook_url:
+                webhook_url = webhook_url.split(" = ")[-1].strip()
+            
+            # Oxiriga /webhook qo'shish (agar yo'q bo'lsa)
+            if not webhook_url.endswith("/webhook"):
+                webhook_url = f"{webhook_url.rstrip('/')}/webhook"
             
             logger.info(f"🌐 Webhook rejimida ishga tushirilmoqda...")
             logger.info(f"🔗 Webhook URL: {webhook_url}")
