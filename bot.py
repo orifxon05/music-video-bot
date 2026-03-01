@@ -35,10 +35,9 @@ recognizer = MusicRecognizer()
 remix_finder = RemixFinder()
 searcher = MusicSearcher()
 
-# Foydalanuvchi ma'lumotlarini saqlash
-user_music_data = {}
-user_search_data = {}  # Qidiruv natijalari
-user_url_data = {}  # URL va user_id bog'liqligi
+# Foydalanuvchi ma'lumotlari endi PostgreSQL bazada saqlanadi (database.py)
+# user_music_data -> db.save_user_session() / db.get_user_session()
+# user_search_data -> db.save_search_results() / db.get_search_results()
 
 
 
@@ -173,9 +172,9 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if os.path.exists(DOWNLOAD_PATH):
         files_count = len([f for f in os.listdir(DOWNLOAD_PATH) if os.path.isfile(os.path.join(DOWNLOAD_PATH, f))])
     
-    from cache import cache
-    cached_audio = len(cache.cache.get("audio", {}))
-    cached_video = len(cache.cache.get("video", {}))
+    cache_stats = db.get_cache_stats()
+    cached_audio = cache_stats.get("audio", 0)
+    cached_video = cache_stats.get("video", 0)
     
     text = f"""📊 **Bot Statistikasi (Baza)**
 
@@ -245,10 +244,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                     ]
                 ])
             )
-            # Ma'lumotlarni saqlash
-            if user_id not in user_music_data:
-                user_music_data[user_id] = {}
-            user_music_data[user_id].update({
+            # Ma'lumotlarni bazaga saqlash
+            db.save_user_session(user_id, {
                 "url": url,
                 "title": "Video",
                 "artist": ""
@@ -306,10 +303,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                             caption=caption,
                             reply_markup=reply_markup,
                         )
-                        # Ma'lumotlarni saqlash
-                        if user_id not in user_music_data:
-                            user_music_data[user_id] = {}
-                        user_music_data[user_id].update({
+                        # Ma'lumotlarni bazaga saqlash
+                        db.save_user_session(user_id, {
                             "url": url,
                             "title": video_title,
                             "artist": uploader
@@ -340,9 +335,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                         ]
                     ])
                 )
-                if user_id not in user_music_data:
-                    user_music_data[user_id] = {}
-                user_music_data[user_id].update({"url": url, "title": video_result.get('title', 'Audio')})
+                db.save_user_session(user_id, {"url": url, "title": video_result.get('title', 'Audio')})
                 await status_msg.delete()
                 return
 
@@ -353,9 +346,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                 audio_path = audio_result["filepath"]
                 video_title = video_result.get('title', 'Audio') if video_result.get('success') else 'Audio'
                 
-                if user_id not in user_music_data:
-                    user_music_data[user_id] = {}
-                user_music_data[user_id].update({
+                db.save_user_session(user_id, {
                     "title": video_title,
                     "artist": "",
                     "audio_path": audio_path,
@@ -394,14 +385,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
             if not cache.get_audio(url):
                 audio_result = await downloader.download_audio(url, user_id)
                 if audio_result.get("success"):
-                     # Keshga saqlash uchun bitta yuborib ko'ramiz (lekin o'chiramiz yoki shunchaki saqlab qo'yamiz)
-                     # Telegramda file_id olish uchun yuborish shart. Shuning uchun foydalanuvchiga emas, admin botga yuborsa bo'ladi yoki keshga keyinroq tushadi.
-                     # Hozircha shunchaki path ni saqlaymiz.
-                    user_music_data[user_id] = {
+                    db.save_user_session(user_id, {
                         "title": video_result.get('title', 'Audio'),
                         "artist": "",
                         "audio_path": audio_result["filepath"],
-                    }
+                        "url": url
+                    })
         
         # Status xabarini o'chirish
         try:
@@ -479,9 +468,7 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if result.get("success"):
             # Ma'lumotlarni saqlash
-            if user_id not in user_music_data:
-                user_music_data[user_id] = {}
-            user_music_data[user_id].update({
+            db.save_user_session(user_id, {
                 "title": result["title"],
                 "artist": result["artist"],
                 "audio_path": file_path,
@@ -536,16 +523,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data.startswith("shazam_"):
         # Shazam - musiqa aniqlash (FAQAT KERAK BO'LGANDA)
-        if user_id in user_music_data and "audio_path" in user_music_data[user_id]:
-            audio_path = user_music_data[user_id]["audio_path"]
+        session = db.get_user_session(user_id)
+        if session and session.get("audio_path"):
+            audio_path = session["audio_path"]
             if os.path.exists(audio_path):
                 status_msg = await query.message.reply_text("🎤 Shazam aniqlamoqda...")
                 
                 music_result = await recognizer.recognize_from_file(audio_path)
                 
                 if music_result.get("success"):
-                    user_music_data[user_id]["title"] = music_result["title"]
-                    user_music_data[user_id]["artist"] = music_result["artist"]
+                    db.save_user_session(user_id, {
+                        "title": music_result["title"],
+                        "artist": music_result["artist"]
+                    })
                     
                     text = recognizer.format_result(music_result)
                     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
@@ -568,14 +558,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status_msg = await query.message.reply_text(MESSAGES["processing"])
             
             # Foydalanuvchi audio'sini yuborish
-            if user_id in user_music_data and "audio_path" in user_music_data[user_id]:
-                audio_path = user_music_data[user_id]["audio_path"]
+            session = db.get_user_session(user_id)
+            if session and session.get("audio_path"):
+                audio_path = session["audio_path"]
                 if os.path.exists(audio_path):
                     with open(audio_path, 'rb') as audio_file:
                         await query.message.reply_audio(
                             audio=audio_file,
-                            title=user_music_data[user_id].get("title", "Audio"),
-                            performer=user_music_data[user_id].get("artist", ""),
+                            title=session.get("title", "Audio"),
+                            performer=session.get("artist", ""),
                             caption="🎵 Audio yuborildi\n\n👉 @SavemuzikVideoBot",
                             reply_markup=InlineKeyboardMarkup([
                                 [
@@ -595,10 +586,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif data.startswith("remix_"):
         # Remix/Cover topish
-        if user_id in user_music_data:
-            music_data = user_music_data[user_id]
-            title = music_data.get("title", "")
-            artist = music_data.get("artist", "")
+        session = db.get_user_session(user_id)
+        if session:
+            title = session.get("title", "")
+            artist = session.get("artist", "")
             
             if title:
                 status_msg = await query.message.reply_text(MESSAGES["finding_remixes"])
@@ -611,7 +602,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     if all_results:
                         # Natijalarni saqlash
-                        user_search_data[f"remix_{user_id}"] = all_results
+                        db.save_search_results(f"remix_{user_id}", all_results)
                         
                         # Inline keyboard yaratish
                         keyboard = []
@@ -654,8 +645,8 @@ Yuklab olish uchun birini tanlang 👇"""
                 rmx_user_id = int(parts[2])
                 
                 key = f"remix_{rmx_user_id}"
-                if key in user_search_data:
-                    results = user_search_data[key]
+                results = db.get_search_results(key)
+                if results:
                     if index < len(results):
                         item = results[index]
                         url = item.get("url", "")
@@ -676,9 +667,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                         ]
                                     ])
                                 )
-                                if user_id not in user_music_data:
-                                    user_music_data[user_id] = {}
-                                user_music_data[user_id].update({
+                                db.save_user_session(user_id, {
                                     "url": url, 
                                     "title": item.get("title", "Remix"),
                                     "artist": item.get("channel", "")
@@ -706,9 +695,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                             ]
                                         ])
                                     )
-                                    if user_id not in user_music_data:
-                                        user_music_data[user_id] = {}
-                                    user_music_data[user_id].update({
+                                    db.save_user_session(user_id, {
                                         "url": url, 
                                         "title": item.get("title", "Remix"),
                                         "artist": item.get("channel", "")
@@ -740,17 +727,15 @@ Yuklab olish uchun birini tanlang 👇"""
         # Videoni yuklab berish
         status_msg = await query.message.reply_text("📥 Video qidirilmoqda/yuklanmoqda... ⚡")
         
-        url = None
-        if user_id in user_music_data:
-            url = user_music_data[user_id].get("url")
+        session = db.get_user_session(user_id)
+        url = session.get("url") if session else None
             
         if url:
             # Agar URL bo'lsa to'g'ridan-to'g'ri yuklash
             await handle_link(update, context, url, status_msg=status_msg)
-        elif user_id in user_music_data:
+        elif session:
             # URL yo'q (masalan Shazam natijasi), nomi bilan qidirish
-            music_data = user_music_data[user_id]
-            search_query = f"{music_data.get('title', '')} {music_data.get('artist', '')}".strip()
+            search_query = f"{session.get('title', '')} {session.get('artist', '')}".strip()
             
             if search_query:
                 results = await searcher.search_by_name(search_query)
@@ -778,10 +763,10 @@ Yuklab olish uchun birini tanlang 👇"""
     elif data.startswith("dlsong_"):
         # Shazam topgan qo'shiqni YouTube'dan qidirib yuklab berish
         try:
-            if user_id in user_music_data:
-                music_data = user_music_data[user_id]
-                title = music_data.get("title", "")
-                artist = music_data.get("artist", "")
+            session = db.get_user_session(user_id)
+            if session:
+                title = session.get("title", "")
+                artist = session.get("artist", "")
                 
                 if title:
                     search_query = f"{title} {artist}".strip()
@@ -910,8 +895,8 @@ Yuklab olish uchun birini tanlang 👇"""
                 index = int(parts[1])
                 search_user_id = int(parts[2])
                 
-                if search_user_id in user_search_data:
-                    results = user_search_data[search_user_id]
+                results = db.get_search_results(search_user_id)
+                if results:
                     if index < len(results):
                         item = results[index]
                         url = item.get("url", "")
@@ -932,9 +917,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                         ]
                                     ])
                                 )
-                                if user_id not in user_music_data:
-                                    user_music_data[user_id] = {}
-                                user_music_data[user_id].update({"url": url, "title": item.get("title", "Audio")})
+                                db.save_user_session(user_id, {"url": url, "title": item.get("title", "Audio")})
                             else:
                                 status_msg = await query.message.reply_text(MESSAGES["downloading"])
                                 audio_result = await downloader.download_audio(url, user_id)
@@ -953,9 +936,7 @@ Yuklab olish uchun birini tanlang 👇"""
                                                 ]
                                             ])
                                         )
-                                    if user_id not in user_music_data:
-                                        user_music_data[user_id] = {}
-                                    user_music_data[user_id].update({"url": url, "title": item.get("title", "Audio")})
+                                    db.save_user_session(user_id, {"url": url, "title": item.get("title", "Audio")})
                                     if sent_msg.audio:
                                         cache.save_audio(url, sent_msg.audio.file_id, item.get("title", ""))
                                     
@@ -1067,7 +1048,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if results.get("success") and results.get("results"):
                 # Natijalarni saqlash
-                user_search_data[user_id] = results.get("results", [])
+                db.save_search_results(user_id, results.get("results", []))
                 
                 # Inline keyboard yaratish
                 keyboard = []
