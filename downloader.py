@@ -55,43 +55,58 @@ class Downloader:
             "audioBitrate": "128"
         }
 
-        async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
+        async with httpx.AsyncClient(timeout=45.0, verify=False) as client:
             for server in SERVERS:
+                server_url = server['url']
                 try:
-                    logger.info(f"Trying server: {server['url']}")
-                    resp = await client.post(server['url'], json=payload, headers=headers)
+                    logger.info(f"Trying server: {server_url}")
+                    resp = await client.post(server_url, json=payload, headers=headers)
                     
                     if resp.status_code == 200:
                         data = resp.json()
                         dl_url = None
-                        if data.get("status") == "stream" or data.get("status") == "redirect":
+                        status = data.get("status")
+                        
+                        # Variantlar: stream, redirect, success (v10/v11)
+                        if status in ["stream", "redirect", "success"]:
                             dl_url = data.get("url")
-                        elif data.get("status") == "success":
+                        elif not status and data.get("url"): # Ba'zi APIlar status qaytarmasligi mumkin
                             dl_url = data.get("url")
                             
                         if dl_url:
+                            logger.info(f"✅ Success from {server_url}, downloading file...")
                             # Faylni serverga yuklab olamiz
                             filename = f"{user_id}_{os.urandom(4).hex()}"
                             ext = "mp4" if is_video else "mp3"
                             filepath = os.path.join(self.download_path, f"{filename}.{ext}")
                             
                             async with client.stream("GET", dl_url, follow_redirects=True) as response:
+                                if response.status_code != 200:
+                                    logger.error(f"❌ Failed to download file from stream URL: {response.status_code}")
+                                    continue
+                                    
                                 with open(filepath, "wb") as f:
                                     async for chunk in response.aiter_bytes():
                                         f.write(chunk)
                             
-                            return {
-                                "success": True, 
-                                "filepath": filepath, 
-                                "title": data.get("filename", "audio"),
-                                "is_video": is_video
-                            }
-                    
-                    logger.warning(f"Server {server['url']} error: {resp.status_code}")
+                            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                                return {
+                                    "success": True, 
+                                    "filepath": filepath, 
+                                    "title": data.get("filename", "audio"),
+                                    "is_video": is_video
+                                }
+                            else:
+                                logger.error(f"❌ File downloaded but is empty or missing: {filepath}")
+                        else:
+                            logger.warning(f"⚠️ Server {server_url} response without URL: {data}")
+                    else:
+                        logger.warning(f"⚠️ Server {server_url} returned status {resp.status_code}: {resp.text[:200]}")
+                
                 except Exception as e:
-                    logger.warning(f"Server {server['url']} failed: {str(e)[:100]}")
+                    logger.warning(f"❌ Server {server_url} failed with error: {str(e)[:150]}")
         
-        return {"success": False, "error": "Barcha serverlar band yoki ishlamayapti"}
+        return {"success": False, "error": "Barcha serverlar band yoki ishlamayapti (Server timeout yoki blok)"}
 
     async def download_audio(self, url: str, user_id: int) -> dict:
         """Audioni yuklab olish (Cobalt -> yt-dlp fallback)"""
