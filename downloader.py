@@ -145,13 +145,22 @@ class Downloader:
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
         """Cobalt API v10 orqali yuklab olish (Multi-server fallback)"""
         
-        # Yangi Cobalt v10 serverlari (2025-2026)
+        # Yangi va ishlaydigan Cobalt v10 serverlari (2026)
         COBALT_SERVERS = [
             "https://cobalt.instavideosave.com",
             "https://api.cobalt.tools",
             "https://cobalt-api.kwiatekmiki.com",
             "https://cobalt.canine.tools",
+            "https://cobalt.mizabot.xyz",
+            "https://cobalt.darkness.services",
         ]
+        
+        # Sarlavhalarni biroz o'zgartiramiz (Ba'zi serverlar uchun)
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
         
         # Agar .env da alohida server ko'rsatilgan bo'lsa
         if COBALT_API and not COBALT_API.endswith("/api/json"):
