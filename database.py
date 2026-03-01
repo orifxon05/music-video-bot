@@ -209,15 +209,16 @@ class Database:
         except: return None
 
     def save_search_results(self, result_key, results):
+        key_str = str(result_key)
         user_id = 0
-        if "_" in result_key:
-            try: user_id = int(result_key.split("_")[-1])
+        if "_" in key_str:
+            try: user_id = int(key_str.split("_")[-1])
             except: pass
         else:
-            try: user_id = int(result_key)
+            try: user_id = int(key_str)
             except: pass
         self._execute_safe("INSERT INTO search_results (user_id, result_key, results_json) VALUES (%s, %s, %s)",
-                         (user_id, result_key, json.dumps(results)))
+                         (user_id, key_str, json.dumps(results)))
 
     def get_search_results(self, result_key):
         conn = self._get_connection()
