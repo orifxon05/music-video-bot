@@ -147,6 +147,7 @@ class Downloader:
         
         # Yangi Cobalt v10 serverlari (2025-2026)
         COBALT_SERVERS = [
+            "https://cobalt.instavideosave.com",
             "https://api.cobalt.tools",
             "https://cobalt-api.kwiatekmiki.com",
             "https://cobalt.canine.tools",
