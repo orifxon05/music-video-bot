@@ -44,7 +44,7 @@ class Downloader:
             "audioFormat": "mp3",
             "filenamePattern": "basic",
             "isAudioOnly": not is_video,
-            "disableMetadata": False,
+            "downloadMode": "audio" if not is_video else "auto",
             "audioBitrate": "128"
         }
 
@@ -127,17 +127,29 @@ class Downloader:
         return await self.download_with_ytdlp(url, user_id, is_video=True)
 
     async def download_with_ytdlp(self, url: str, user_id: int, is_video: bool = True) -> dict:
-        """yt-dlp orqali yuklash"""
+        """yt-dlp orqali yuklash (Bypass uchun optimallashtirilgan)"""
         try:
             filename = f"{user_id}_{os.urandom(4).hex()}"
             ext = "mp4" if is_video else "mp3"
             filepath = os.path.join(self.download_path, f"{filename}.{ext}")
             
+            # YouTube bot blokirovkasini chetlab o'tish uchun player-client'lik qo'shildi
             ydl_opts = {
                 'format': 'bestaudio/best' if not is_video else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': os.path.join(self.download_path, f"{filename}.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
+                'nocheckcertificate': True,
+                'ignoreerrors': True,
+                'no_color': True,
+                'geo_bypass': True,
+                # Bypass args
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['ios', 'android', 'web'],
+                        'skip': ['hls', 'dash']
+                    }
+                }
             }
 
             if not is_video:
@@ -151,18 +163,20 @@ class Downloader:
 
             loop = asyncio.get_event_loop()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                await loop.run_in_executor(None, lambda: ydl.download([url]))
+                # Meta ma'lumotlarni olish
+                info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=True))
+                title = info.get('title', 'video') if info else 'video'
             
             if not is_video:
                 filepath = os.path.join(self.download_path, f"{filename}.mp3")
 
-            if os.path.exists(filepath):
-                return {"success": True, "filepath": filepath, "title": "downloaded"}
+            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                return {"success": True, "filepath": filepath, "title": title}
             
-            return {"success": False, "error": "Fayl yuklanmadi"}
+            return {"success": False, "error": "Fayl yuklanmadi (yt-dlp blokda bo'lishi mumkin)"}
         except Exception as e:
             logger.error(f"yt-dlp error: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": f"YouTube blokirovkasi: {str(e)[:100]}"}
 
     def cleanup_file(self, filepath: str):
         """Faylni o'chirish"""
