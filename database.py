@@ -51,6 +51,11 @@ class Database:
                     is_admin BOOLEAN DEFAULT FALSE
                 )
             """)
+            # Ustun borligini tekshirish (fallback)
+            try:
+                cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE")
+            except:
+                pass
             
             # Channels jadvali - Majburiy obuna uchun
             cur.execute("""
