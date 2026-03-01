@@ -13,6 +13,11 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "7693191223"))
 # Database URL (Render/Koyeb)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Webhook sozlamalari
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")  # Masalan: https://your-bot.onrender.com
+PORT = int(os.getenv("PORT", "8080"))
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "savemuzik-bot-secret-key-2026")
+
 # Supported platforms
 SUPPORTED_PLATFORMS = {
     "instagram": ["instagram.com", "instagr.am"],

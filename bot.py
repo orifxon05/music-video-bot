@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 from telegram.constants import ParseMode, ChatAction
 
-from config import BOT_TOKEN, MESSAGES, DOWNLOAD_PATH
+from config import BOT_TOKEN, MESSAGES, DOWNLOAD_PATH, WEBHOOK_URL, PORT, WEBHOOK_SECRET
 from downloader import Downloader
 from music_recognizer import MusicRecognizer
 from remix_finder import RemixFinder
@@ -40,24 +40,7 @@ user_music_data = {}
 user_search_data = {}  # Qidiruv natijalari
 user_url_data = {}  # URL va user_id bog'liqligi
 
-# ==================== KEEP ALIVE (FOR RENDER) ====================
-from flask import Flask
-from threading import Thread
 
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-def run_web():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
-
-def keep_alive():
-    t = Thread(target=run_web)
-    t.start()
-# =================================================================
 
 # ==================== CACHE SETTINGS ====================
 import time
@@ -1167,7 +1150,6 @@ def main():
         application.add_handler(CommandHandler("stats", stats_command))
         application.add_handler(CommandHandler("admin", admin_command))
         
-        # Audio handler
         # Audio/Video handler
         application.add_handler(MessageHandler(
             filters.AUDIO | filters.VOICE | filters.VIDEO | filters.VIDEO_NOTE | filters.Document.ALL,
@@ -1180,12 +1162,31 @@ def main():
         # Callback handler
         application.add_handler(CallbackQueryHandler(handle_callback))
         
-        # Botni ishga tushirish
-        logger.info("🤖 Bot ishga tushirildi! (Polling boshlanmoqda)")
-        print(" >>> BOT TAYYOR! POLLING BOSHLANDI.")
-        
-        keep_alive()  # Render uchun veb-serverni ishga tushirish
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # ==================== WEBHOOK YOKI POLLING ====================
+        if WEBHOOK_URL:
+            # WEBHOOK rejimi (Render/Production uchun)
+            webhook_url = f"{WEBHOOK_URL}/webhook"
+            
+            logger.info(f"🌐 Webhook rejimida ishga tushirilmoqda...")
+            logger.info(f"🔗 Webhook URL: {webhook_url}")
+            logger.info(f"🚪 Port: {PORT}")
+            print(f" >>> WEBHOOK REJIMI: {webhook_url}")
+            print(f" >>> PORT: {PORT}")
+            
+            application.run_webhook(
+                listen="0.0.0.0",
+                port=PORT,
+                url_path="/webhook",
+                webhook_url=webhook_url,
+                secret_token=WEBHOOK_SECRET,
+                allowed_updates=Update.ALL_TYPES,
+            )
+        else:
+            # POLLING rejimi (Lokal ishga tushirish uchun)
+            logger.info("🤖 Polling rejimida ishga tushirildi!")
+            print(" >>> POLLING REJIMI (Lokal dev)")
+            
+            application.run_polling(allowed_updates=Update.ALL_TYPES)
         
     except Exception as e:
         logger.critical(f"BOT CRASHED: {e}", exc_info=True)

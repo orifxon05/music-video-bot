@@ -13,7 +13,6 @@ pydub==0.25.1
 # HTTP Requests
 aiohttp==3.9.1
 requests==2.31.0
-flask==3.0.0
 
 # Environment Variables
 python-dotenv==1.0.0
