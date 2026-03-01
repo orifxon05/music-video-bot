@@ -143,59 +143,71 @@ class Downloader:
             return {"success": False, "error": str(e)}
 
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
-        """Cobalt API orqali yuklab olish (Multi-server fallback)"""
+        """Cobalt API v10 orqali yuklab olish (Multi-server fallback)"""
         
-        # Ishonchli Cobalt serverlari ro'yxati (Tezkorlari oldinda)
+        # Yangi Cobalt v10 serverlari (2025-2026)
         COBALT_SERVERS = [
-            "https://api.wuk.sh/api/json",            # Eng tez va barqaror
-            "https://cobalt.executor.ws/api/json",     # Yangi va tez
-            "https://cobalt.wix.ovh/api/json",
-            "https://api.cobalt.tools/api/json",      # Rasmiy (ko'pincha band)
-            "https://cobalt.api.redstream.me/api/json",
-            "https://cobalt.xyzen.dev/api/json",
-            "https://cobalt.kwiatekmiki.pl/api/json"
+            "https://api.cobalt.tools",
+            "https://cobalt-api.kwiatekmiki.com",
+            "https://cobalt.canine.tools",
         ]
         
-        # Agar .env da alohida server ko'rsatilgan bo'lsa, uni birinchiga qo'yamiz
-        if COBALT_API and COBALT_API not in COBALT_SERVERS:
-            COBALT_SERVERS.insert(0, COBALT_API)
+        # Agar .env da alohida server ko'rsatilgan bo'lsa
+        if COBALT_API and not COBALT_API.endswith("/api/json"):
+            if COBALT_API not in COBALT_SERVERS:
+                COBALT_SERVERS.insert(0, COBALT_API)
 
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         
-        loop = asyncio.get_event_loop()
+        # Cobalt v10 payload formati
+        payload = {
+            "url": url,
+            "filenameStyle": "basic",
+        }
+
+        if is_video:
+            payload["videoQuality"] = "720"
+            payload["downloadMode"] = "auto"
+        else:
+            payload["downloadMode"] = "audio"
+            payload["audioFormat"] = "mp3"
+            payload["audioBitrate"] = "128"
         
+        loop = asyncio.get_event_loop()
         last_error = ""
 
-        for api_url in COBALT_SERVERS:
+        for base_url in COBALT_SERVERS:
             try:
-                # Payloadni universallashtirish (v7 va v10 uchun)
-                payload = {
-                    "url": url,
-                    "filenameStyle": "basic"
-                }
-
-                if is_video:
-                    payload["videoQuality"] = "720"
-                    payload["quality"] = "720" 
-                    payload["downloadMode"] = "auto"
-                else:
-                    payload["downloadMode"] = "audio"
-                    payload["isAudioOnly"] = True
-                    payload["audioFormat"] = "mp3"
+                # Cobalt v10: POST / (root endpoint)
+                api_url = base_url.rstrip("/")
                 
-                # TIMEOUT: 6 soniya (Juda tez o'tishi kerak)
                 response = await loop.run_in_executor(
                     None,
-                    lambda: requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=6)
+                    lambda url=api_url: requests.post(url, headers=headers, data=json.dumps(payload), timeout=10)
                 )
                 
                 if response.status_code == 200:
                     data = response.json()
-                    download_url = data.get("url")
+                    status = data.get("status")
+                    
+                    download_url = None
+                    
+                    # v10 response formatlari
+                    if status in ("tunnel", "redirect"):
+                        download_url = data.get("url")
+                    elif status == "picker":
+                        # Ko'p fayldan birinchisi
+                        picker = data.get("picker", [])
+                        if picker:
+                            download_url = picker[0].get("url")
+                    elif status == "error":
+                        error_code = data.get("error", {})
+                        logger.warning(f"⚠️ Cobalt {api_url} xato: {error_code}")
+                        last_error = str(error_code)
+                        continue
                     
                     if download_url:
                         # Faylni yuklab olish
@@ -204,7 +216,7 @@ class Downloader:
                         
                         file_res = await loop.run_in_executor(
                             None,
-                            lambda: requests.get(download_url, stream=True, timeout=60)
+                            lambda dl_url=download_url: requests.get(dl_url, stream=True, timeout=60)
                         )
                         
                         if file_res.status_code == 200:
@@ -213,23 +225,25 @@ class Downloader:
                                     if chunk:
                                         f.write(chunk)
                             
-                            logger.info(f"✅ Cobalt orqali yuklandi: {api_url}")
-                            return {
-                                "success": True,
-                                "filepath": filepath,
-                                "title": "Video" if is_video else "Audio",
-                                "duration": 0,
-                                "uploader": "Cobalt API",
-                                "platform": self.get_platform(url),
-                            }
+                            # Fayl hajmini tekshirish
+                            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                                logger.info(f"✅ Cobalt v10 orqali yuklandi: {api_url}")
+                                return {
+                                    "success": True,
+                                    "filepath": filepath,
+                                    "title": data.get("filename", "Video" if is_video else "Audio"),
+                                    "duration": 0,
+                                    "uploader": "Cobalt API",
+                                    "platform": self.get_platform(url),
+                                }
                 
-                # Agar o'xshamasa, sababini logga yozamiz
+                # Xatoni yozamiz
                 error_text = response.text[:200] if response.text else "No content"
-                logger.warning(f"⚠️ Server {api_url} xato: {response.status_code} - {error_text}")
+                logger.warning(f"⚠️ Cobalt {api_url} xato: {response.status_code} - {error_text}")
                 last_error = f"{response.status_code} - {error_text}"
                 
             except Exception as e:
-                logger.warning(f"⚠️ Server {api_url} ulanish xatosi: {e}")
+                logger.warning(f"⚠️ Cobalt {base_url} ulanish xatosi: {e}")
                 last_error = str(e)
                 continue
         
