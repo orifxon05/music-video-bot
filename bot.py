@@ -1046,18 +1046,26 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # YouTube'dan qidirish
             results = await searcher.search_by_name(text)
             
-            if results.get("success") and results.get("results"):
-                # Natijalarni saqlash
-                db.save_search_results(user_id, results.get("results", []))
+            search_items = results.get("results")
+            if results.get("success") and isinstance(search_items, list) and len(search_items) > 0:
+                # Natijalarni bazaga saqlash
+                db.save_search_results(user_id, search_items)
                 
                 # Inline keyboard yaratish
                 keyboard = []
-                for i, item in enumerate(results.get("results", [])[:10]):
-                    title = item.get("title", "")[:40]
-                    duration = item.get("duration", "")
-                    btn_text = f"🎵 {title}... ({duration})"
+                for i, item in enumerate(search_items[:10]):
+                    if not isinstance(item, dict): continue
+                    
+                    item_title = str(item.get("title", "Audio"))[:35]
+                    item_duration = str(item.get("duration", "0:00"))
+                    
+                    btn_text = f"🎵 {item_title}... ({item_duration})"
                     keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"dl_{i}_{user_id}")])
                 
+                if not keyboard:
+                    await status_msg.edit_text("😔 Natija topilmadi.")
+                    return
+
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 text_msg = f"""🔍 **Qidiruv: "{text}"**
@@ -1074,7 +1082,7 @@ Yuklab olish uchun birini tanlang 👇"""
             else:
                 await status_msg.edit_text("😔 Hech narsa topilmadi. Boshqa nom bilan sinab ko'ring.")
         except Exception as e:
-            logger.error(f"Search error: {e}")
+            logger.error(f"Search error in bot.py: {e}")
             await status_msg.edit_text(MESSAGES["error"])
     else:
         await update.message.reply_text(
