@@ -11,47 +11,67 @@ class MusicSearcher:
         self.yt = YTMusic() # API ni initsializatsiya qilish
 
     async def search_by_name(self, query: str, limit: int = 10) -> dict:
-        """Musiqa nomi bo'yicha qidirish (YouTube Music)"""
+        """Musiqa nomi bo'yicha qidirish (YouTube Music with yt-dlp fallback)"""
         try:
             query = query.strip()
             if not query:
                 return {"success": False, "error": "Bo'sh qidiruv"}
 
-            # 1. Asosiy qidiruv (Qo'shiqlar)
+            results = []
+            
+            # 1. YTMusic orqali qidib ko'rish
             try:
                 results = self.yt.search(query, filter="songs", limit=limit)
             except Exception as e:
-                logger.error(f"YTMusic songs search error: {e}")
-                results = []
+                if "429" in str(e):
+                    logger.warning(f"⚠️ YTMusic Rate Limit (429). yt-dlp ishlatilmoqda...")
+                else:
+                    logger.error(f"YTMusic search error: {e}")
             
-            # 2. Agar qo'shiqlar topilmasa, videolar qidirib ko'ramiz
+            # 2. Agar YTMusic topmasa yoki xato bersa, yt-dlp orqali qidirish
             if not results:
                 try:
-                    results = self.yt.search(query, filter="videos", limit=limit)
-                except Exception as e:
-                    logger.error(f"YTMusic videos search error: {e}")
-                    results = []
-                
+                    import yt_dlp
+                    import asyncio
+                    
+                    ydl_opts = {
+                        'format': 'bestaudio/best',
+                        'quiet': True,
+                        'no_warnings': True,
+                        'extract_flat': True,
+                    }
+                    
+                    # yt-dlp search query
+                    search_query = f"ytsearch{limit}:{query}"
+                    
+                    def _yt_dlp_search():
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            return ydl.extract_info(search_query, download=False)
+                    
+                    loop = asyncio.get_event_loop()
+                    search_results = await loop.run_in_executor(None, _yt_dlp_search)
+                    
+                    if search_results and 'entries' in search_results:
+                        for entry in search_results['entries']:
+                            if not entry: continue
+                            results.append({
+                                "videoId": entry.get("id"),
+                                "title": entry.get("title"),
+                                "artists": [{"name": entry.get("uploader", "")}],
+                                "duration": self._format_seconds(entry.get("duration", 0))
+                            })
+                except Exception as ydl_e:
+                    logger.error(f"yt-dlp search fallback error: {ydl_e}")
+
             formatted_results = []
-            
             for item in results:
-                # VideoID olish
                 video_id = item.get("videoId")
-                if not video_id:
-                    continue
+                if not video_id: continue
                     
                 title = item.get("title", "Nomalum")
-                
-                # Artist nomini olish
                 artists = item.get("artists", [])
-                artist_name = ""
-                if artists:
-                    artist_name = artists[0].get("name", "")
-                
-                # Davomiylik
+                artist_name = artists[0].get("name", "") if artists else ""
                 duration = item.get("duration", "0:00")
-                
-                # Link
                 url = f"https://www.youtube.com/watch?v={video_id}"
                 
                 formatted_results.append({
@@ -69,3 +89,11 @@ class MusicSearcher:
         except Exception as e:
             logger.error(f"Global search error: {e}")
             return {"success": False, "error": str(e)}
+
+    def _format_seconds(self, seconds):
+        if not seconds: return "0:00"
+        m, s = divmod(int(seconds), 60)
+        h, m = divmod(m, 60)
+        if h > 0:
+            return f"{h}:{m:02d}:{s:02d}"
+        return f"{m}:{s:02d}"
