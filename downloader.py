@@ -25,26 +25,19 @@ class Downloader:
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
         """Ishonchli Cobalt va muqobil API serverlari orqali yuklash"""
         
-        # 2026-yilda ishlayotgan eng ishonchli yangi serverlar (v11+)
+        # v11+ versiyalarida /api/json endi 404 beradi, root / ishlatish kerak
+        # YouTube ishlayotgan (Up) instansiyalar birinchi o'ringa qo'yildi
         SERVERS = [
-            {"url": "https://cobalt-api.meowing.de/api/json", "type": "v11"},
-            {"url": "https://cobalt-backend.canine.tools/api/json", "type": "v11"},
-            {"url": "https://kityune.imput.net/api/json", "type": "v11"},
-            {"url": "https://sunny.imput.net/api/json", "type": "v11"},
-            {"url": "https://blossom.imput.net/api/json", "type": "v11"},
-            {"url": "https://nachos.imput.net/api/json", "type": "v11"},
-            {"url": "https://capi.3kh0.net/api/json", "type": "v11"},
-            {"url": "https://api.cobalt.tools/api/json", "type": "v11"}
+            {"url": "https://cobalt-api.meowing.de", "type": "v11"},
+            {"url": "https://cobalt-backend.canine.tools", "type": "v11"},
+            {"url": "https://capi.3kh0.net", "type": "v11"},
+            {"url": "https://kityune.imput.net", "type": "v11"},
+            {"url": "https://sunny.imput.net", "type": "v11"},
+            {"url": "https://blossom.imput.net", "type": "v11"},
+            {"url": "https://nachos.imput.net", "type": "v11"},
+            {"url": "https://api.cobalt.tools", "type": "v11"}
         ]
         
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-            "Origin": "https://cobalt.tools",
-            "Referer": "https://cobalt.tools/"
-        }
-
         payload = {
             "url": url,
             "videoQuality": "720",
@@ -58,6 +51,17 @@ class Downloader:
         async with httpx.AsyncClient(timeout=45.0, verify=False) as client:
             for server in SERVERS:
                 server_url = server['url']
+                # Har bir server uchun o'zining Origin va Referer'ini yasaymiz
+                base_domain = re.search(r'https?://([^/]+)', server_url).group(0)
+                
+                headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                    "Origin": base_domain,
+                    "Referer": base_domain + "/"
+                }
+
                 try:
                     logger.info(f"Trying server: {server_url}")
                     resp = await client.post(server_url, json=payload, headers=headers)
