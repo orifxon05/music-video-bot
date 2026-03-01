@@ -221,11 +221,13 @@ class Database:
                          (user_id, key_str, json.dumps(results)))
 
     def get_search_results(self, result_key):
+        """Saqlangan qidiruv natijalarini olish"""
         conn = self._get_connection()
         if not conn: return None
         try:
+            key_str = str(result_key) # Stringga o'tkazamiz
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT results_json FROM search_results WHERE result_key = %s ORDER BY updated_at DESC LIMIT 1", (result_key,))
+            cur.execute("SELECT results_json FROM search_results WHERE result_key = %s ORDER BY updated_at DESC LIMIT 1", (key_str,))
             row = cur.fetchone()
             cur.close()
             conn.close()

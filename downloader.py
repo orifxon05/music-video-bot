@@ -63,10 +63,29 @@ class Downloader:
                     
                     if resp.status_code == 200:
                         data = resp.json()
+                        dl_url = None
                         if data.get("status") == "stream" or data.get("status") == "redirect":
-                            return {"success": True, "url": data.get("url"), "title": data.get("filename", "audio")}
+                            dl_url = data.get("url")
                         elif data.get("status") == "success":
-                            return {"success": True, "url": data.get("url"), "title": "audio"}
+                            dl_url = data.get("url")
+                            
+                        if dl_url:
+                            # Faylni serverga yuklab olamiz
+                            filename = f"{user_id}_{os.urandom(4).hex()}"
+                            ext = "mp4" if is_video else "mp3"
+                            filepath = os.path.join(self.download_path, f"{filename}.{ext}")
+                            
+                            async with client.stream("GET", dl_url, follow_redirects=True) as response:
+                                with open(filepath, "wb") as f:
+                                    async for chunk in response.aiter_bytes():
+                                        f.write(chunk)
+                            
+                            return {
+                                "success": True, 
+                                "filepath": filepath, 
+                                "title": data.get("filename", "audio"),
+                                "is_video": is_video
+                            }
                     
                     logger.warning(f"Server {server['url']} error: {resp.status_code}")
                 except Exception as e:
@@ -76,12 +95,9 @@ class Downloader:
 
     async def download_audio(self, url: str, user_id: int) -> dict:
         """Audioni yuklab olish (Cobalt -> yt-dlp fallback)"""
-        # 1. Cobalt orqali harakat
         res = await self.download_with_cobalt(url, user_id, is_video=False)
         if res["success"]:
             return res
-
-        # 2. yt-dlp fallback (Bloklangan bo'lishi mumkin, lekin baribir urinib ko'ramiz)
         return await self.download_with_ytdlp(url, user_id, is_video=False)
 
     async def download_video(self, url: str, user_id: int) -> dict:
@@ -89,11 +105,10 @@ class Downloader:
         res = await self.download_with_cobalt(url, user_id, is_video=True)
         if res["success"]:
             return res
-        
         return await self.download_with_ytdlp(url, user_id, is_video=True)
 
     async def download_with_ytdlp(self, url: str, user_id: int, is_video: bool = True) -> dict:
-        """yt-dlp orqali yuklash (Hozircha YouTube bloklashi mumkin)"""
+        """yt-dlp orqali yuklash"""
         try:
             filename = f"{user_id}_{os.urandom(4).hex()}"
             ext = "mp4" if is_video else "mp3"
@@ -119,14 +134,21 @@ class Downloader:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 await loop.run_in_executor(None, lambda: ydl.download([url]))
             
-            # Agar mp3 bo'lsa, extension o'zgargan bo'lishi mumkin
             if not is_video:
                 filepath = os.path.join(self.download_path, f"{filename}.mp3")
 
             if os.path.exists(filepath):
-                return {"success": True, "path": filepath, "title": "downloaded"}
+                return {"success": True, "filepath": filepath, "title": "downloaded"}
             
             return {"success": False, "error": "Fayl yuklanmadi"}
         except Exception as e:
             logger.error(f"yt-dlp error: {e}")
             return {"success": False, "error": str(e)}
+
+    def cleanup_file(self, filepath: str):
+        """Faylni o'chirish"""
+        try:
+            if filepath and os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")

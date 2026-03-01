@@ -716,9 +716,9 @@ Yuklab olish uchun birini tanlang 👇"""
                         else:
                             await query.message.reply_text("❌ URL topilmadi")
                     else:
-                        await query.message.reply_text("❌ Natija topilmadi")
+                        await query.message.reply_text("❌ Natija topilmadi (indeks xatosi)")
                 else:
-                    await query.message.reply_text("❌ Qaytadan qidiring")
+                    await query.message.reply_text("❌ Qidiruv ma'lumotlari keshdan o'chgan. Iltimos qaytadan qidiring.")
         except Exception as e:
             logger.error(f"Remix download error: {e}")
             await query.message.reply_text(MESSAGES["error"])
@@ -948,6 +948,12 @@ Yuklab olish uchun birini tanlang 👇"""
                                 else:
                                     error_msg = audio_result.get('error', "Yuklab bo'lmadi")
                                     await status_msg.edit_text(f"❌ {error_msg}")
+                        else:
+                            await query.message.reply_text("❌ URL topilmadi")
+                    else:
+                        await query.message.reply_text("❌ Natija topilmadi (indeks xatosi)")
+                else:
+                    await query.message.reply_text("❌ Qidiruv ma'lumotlari keshdan o'chgan. Iltimos qaytadan qidiring.")
         except Exception as e:
             logger.error(f"Download callback error: {e}")
             await query.message.reply_text(MESSAGES["error"])
