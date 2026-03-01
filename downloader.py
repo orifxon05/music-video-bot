@@ -25,13 +25,16 @@ class Downloader:
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
         """Ishonchli Cobalt va muqobil API serverlari orqali yuklash"""
         
-        # 2026-yilda ishlayotgan ishonchli serverlar
+        # 2026-yilda ishlayotgan eng ishonchli yangi serverlar (v11+)
         SERVERS = [
-            {"url": "https://cobalt.canine.tools/api/json", "type": "v10"},
-            {"url": "https://api.cobalt.tools/api/json", "type": "v10"},
-            {"url": "https://cobalt.mizabot.xyz/api/json", "type": "v10"},
-            {"url": "https://cobalt-api.kwiatekmiki.com/api/json", "type": "v10"},
-            {"url": "https://imput.net/api/json", "type": "v10"}
+            {"url": "https://cobalt-api.meowing.de/api/json", "type": "v11"},
+            {"url": "https://cobalt-backend.canine.tools/api/json", "type": "v11"},
+            {"url": "https://kityune.imput.net/api/json", "type": "v11"},
+            {"url": "https://sunny.imput.net/api/json", "type": "v11"},
+            {"url": "https://blossom.imput.net/api/json", "type": "v11"},
+            {"url": "https://nachos.imput.net/api/json", "type": "v11"},
+            {"url": "https://capi.3kh0.net/api/json", "type": "v11"},
+            {"url": "https://api.cobalt.tools/api/json", "type": "v11"}
         ]
         
         headers = {
