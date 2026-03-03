@@ -68,30 +68,41 @@ class Database:
                     return self._get_connection() # SQLite-ga qaytish
         return None
 
+    def _transform_query(self, query):
+        """PostgreSQL so'rovlarini SQLite-ga moslashtirish"""
+        if self.use_sqlite:
+            query = query.replace("ON CONFLICT (id) DO NOTHING", "OR IGNORE")
+            query = query.replace("ON CONFLICT (id) DO UPDATE SET", "OR REPLACE")
+            query = query.replace("EXCLUDED.", "")
+            query = query.replace("%s", "?")
+            # Ba'zi murakkab ON CONFLICT larni SQLite-da OR REPLACE bilan hal qilamiz
+            if "ON CONFLICT" in query:
+                parts = query.split("ON CONFLICT")
+                query = parts[0].strip()
+                if "INSERT" in query:
+                    query = query.replace("INSERT", "INSERT OR REPLACE")
+            
+            # NOW() -> CURRENT_TIMESTAMP
+            query = query.replace("NOW()", "CURRENT_TIMESTAMP")
+            # INTERVAL 'X days' -> '-X days' (SQLite-da boshqacha)
+            import re
+            query = re.sub(r"INTERVAL '(\d+) days'", r" '-\1 days'", query)
+            
+        return query
+
     def _execute_safe(self, query, params=None):
         """Har bir so'rovni alohida commit bilan bajarish"""
         conn = self._get_connection()
         if not conn: return
         try:
-            if self.use_sqlite:
-                # PostgreSQL va SQLite o'rtasidagi ba'zi farqlarni tuzatish
-                query = query.replace("ON CONFLICT (id) DO NOTHING", "OR IGNORE")
-                query = query.replace("ON CONFLICT (id) DO UPDATE SET", "OR REPLACE")
-                query = query.replace("EXCLUDED.", "")
-                query = query.replace("%s", "?")
-                # Ba'zi murakkab ON CONFLICT larni SQLite-da OR REPLACE bilan hal qilamiz
-                if "ON CONFLICT" in query:
-                    query = query.split("ON CONFLICT")[0].strip()
-                    if "INSERT" in query:
-                        query = query.replace("INSERT", "INSERT OR REPLACE")
-
+            query = self._transform_query(query)
             cur = conn.cursor()
             cur.execute(query, params or ())
             conn.commit()
             cur.close()
             conn.close()
         except Exception as e:
-             # logger.debug(f"Safe execute error: {e}") # Debug logni o'chirib turamiz
+             # logger.debug(f"Safe execute error: {e}")
              if conn: conn.close()
 
     def create_tables(self):
@@ -180,7 +191,8 @@ class Database:
         if not conn: return []
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT id FROM users")
+            query = self._transform_query("SELECT id FROM users")
+            cur.execute(query)
             users = cur.fetchall()
             cur.close()
             conn.close()
@@ -193,13 +205,15 @@ class Database:
         if not conn: return {"total_users": 0, "total_downloads": 0}
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT COUNT(*) as total_users FROM users")
+            query_users = self._transform_query("SELECT COUNT(*) as total_users FROM users")
+            cur.execute(query_users)
             total_users = cur.fetchone()['total_users']
             
             # stats jadvali xato bo'lsa ham bot to'xtab qolmasligi uchun
             total_downloads = 0
             try:
-                cur.execute("SELECT total_downloads FROM stats WHERE id = 1")
+                query_stats = self._transform_query("SELECT total_downloads FROM stats WHERE id = 1")
+                cur.execute(query_stats)
                 row = cur.fetchone()
                 total_downloads = row['total_downloads'] if row else 0
             except: pass
@@ -221,7 +235,8 @@ class Database:
         if not conn: return []
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT channel_id, name, url FROM channels")
+            query = self._transform_query("SELECT channel_id, name, url FROM channels")
+            cur.execute(query)
             res = cur.fetchall()
             cur.close()
             conn.close()
@@ -248,7 +263,8 @@ class Database:
         if not conn: return None
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT url, title, artist, audio_path FROM user_session WHERE user_id = %s", (user_id,))
+            query = self._transform_query("SELECT url, title, artist, audio_path FROM user_session WHERE user_id = %s")
+            cur.execute(query, (user_id,))
             row = cur.fetchone()
             cur.close()
             conn.close()
@@ -274,7 +290,8 @@ class Database:
         try:
             key_str = str(result_key) # Stringga o'tkazamiz
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT results_json FROM search_results WHERE result_key = %s ORDER BY updated_at DESC LIMIT 1", (key_str,))
+            query = self._transform_query("SELECT results_json FROM search_results WHERE result_key = %s ORDER BY updated_at DESC LIMIT 1")
+            cur.execute(query, (key_str,))
             row = cur.fetchone()
             cur.close()
             conn.close()
@@ -296,7 +313,8 @@ class Database:
         if not conn: return None
         try:
             cur = conn.cursor()
-            cur.execute("SELECT file_id FROM file_cache WHERE url_hash = %s AND cache_type = %s", (url_hash, cache_type))
+            query = self._transform_query("SELECT file_id FROM file_cache WHERE url_hash = %s AND cache_type = %s")
+            cur.execute(query, (url_hash, cache_type))
             row = cur.fetchone()
             cur.close()
             conn.close()
@@ -308,7 +326,8 @@ class Database:
         if not conn: return {"audio": 0, "video": 0}
         try:
             cur = conn.cursor()
-            cur.execute("SELECT cache_type, COUNT(*) FROM file_cache GROUP BY cache_type")
+            query = self._transform_query("SELECT cache_type, COUNT(*) FROM file_cache GROUP BY cache_type")
+            cur.execute(query)
             rows = cur.fetchall()
             stats = {"audio": 0, "video": 0}
             for row in rows: stats[row[0]] = row[1]
