@@ -1,3 +1,4 @@
+import sqlite3
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
@@ -12,22 +13,35 @@ logger = logging.getLogger(__name__)
 class Database:
     def __init__(self):
         self.database_url = DATABASE_URL
+        self.use_sqlite = False
+        self.sqlite_file = "local_database.db"
+        
         if self.database_url:
             self.conn = self._get_connection()
             if self.conn:
                 try:
                     self.create_tables()
-                    logger.info("✅ Database ulandi va tayyor")
+                    logger.info("✅ PostgreSQL ulandi va tayyor")
                 except Exception as e:
                     logger.error(f"Table creation error: {e}")
             else:
-                logger.error("❌ Database-ga ulanib bo'lmadi!")
+                logger.warning("⚠️ PostgreSQL-ga ulanib bo'lmadi! SQLite-ga o'tilmoqda...")
+                self.use_sqlite = True
+                self.create_tables()
         else:
-            logger.error("❌ DATABASE_URL topilmadi!")
-            self.conn = None
+            logger.warning("❌ DATABASE_URL topilmadi! SQLite ishlatiladi")
+            self.use_sqlite = True
+            self.create_tables()
 
     def _get_connection(self, retries=3):
-        if not self.database_url: return None
+        if self.use_sqlite or not self.database_url:
+            try:
+                conn = sqlite3.connect(self.sqlite_file, check_same_thread=False)
+                conn.row_factory = sqlite3.Row # Dictionary-like access
+                return conn
+            except Exception as e:
+                logger.error(f"SQLite connection error: {e}")
+                return None
         
         for i in range(retries):
             try:
@@ -39,7 +53,8 @@ class Database:
                     keepalives=1,
                     keepalives_idle=30,
                     keepalives_interval=10,
-                    keepalives_count=5
+                    keepalives_count=5,
+                    gssencmode='disable' # GSSAPI muammolarini oldini olish
                 )
                 return conn
             except Exception as e:
@@ -48,23 +63,36 @@ class Database:
                     import time
                     time.sleep(2) # 2 soniya kutib ko'rish
                 else:
-                    logger.error("All database connection attempts failed.")
-                    return None
+                    logger.error("All PostgreSQL connection attempts failed. Switching to SQLite for this session.")
+                    self.use_sqlite = True
+                    return self._get_connection() # SQLite-ga qaytish
+        return None
 
     def _execute_safe(self, query, params=None):
         """Har bir so'rovni alohida commit bilan bajarish"""
         conn = self._get_connection()
         if not conn: return
         try:
+            if self.use_sqlite:
+                # PostgreSQL va SQLite o'rtasidagi ba'zi farqlarni tuzatish
+                query = query.replace("ON CONFLICT (id) DO NOTHING", "OR IGNORE")
+                query = query.replace("ON CONFLICT (id) DO UPDATE SET", "OR REPLACE")
+                query = query.replace("EXCLUDED.", "")
+                query = query.replace("%s", "?")
+                # Ba'zi murakkab ON CONFLICT larni SQLite-da OR REPLACE bilan hal qilamiz
+                if "ON CONFLICT" in query:
+                    query = query.split("ON CONFLICT")[0].strip()
+                    if "INSERT" in query:
+                        query = query.replace("INSERT", "INSERT OR REPLACE")
+
             cur = conn.cursor()
-            cur.execute(query, params)
+            cur.execute(query, params or ())
             conn.commit()
             cur.close()
             conn.close()
         except Exception as e:
-            if conn: conn.rollback()
-            logger.debug(f"Safe execute error (possibly expected): {e}")
-            if conn: conn.close()
+             # logger.debug(f"Safe execute error: {e}") # Debug logni o'chirib turamiz
+             if conn: conn.close()
 
     def create_tables(self):
         """Har bir jadvalni alohida yaratish va commit qilish"""
