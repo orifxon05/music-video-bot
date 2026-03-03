@@ -6,6 +6,7 @@ import yt_dlp
 import re
 import json
 from config import DOWNLOAD_PATH, PROXY_URL, COBALT_API, MAX_FILE_SIZE_MB
+import pathlib
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class Downloader:
         return any(domain in url.lower() for domain in supported_domains)
 
     def _find_cookie_file(self, url: str) -> str | None:
-        """Platformaga mos cookie faylni topish"""
+        """Platformaga mos cookie faylni topish va absolute path qaytarish"""
         # YouTube uchun
         if any(d in url.lower() for d in ['youtube.com', 'youtu.be']):
             candidates = ['youtube_cookies.txt', 'cookies.txt', 'www.youtube.com_cookies.txt']
@@ -36,8 +37,9 @@ class Downloader:
         
         for cookie_file in candidates:
             if os.path.exists(cookie_file):
-                logger.info(f"🍪 Cookie fayli topildi: {cookie_file}")
-                return cookie_file
+                abs_path = pathlib.Path(cookie_file).resolve()
+                logger.info(f"🍪 Cookie fayli topildi: {abs_path}")
+                return str(abs_path)
         return None
 
     # ==================== 1. INVIDIOUS API ====================
@@ -326,17 +328,23 @@ class Downloader:
                 'retries': 3,
             }
 
-            # COOKIE TEKSHIRISH - To'g'rilangan versiya
+            # COOKIE TEKSHIRISH - To'g'rilangan cookies va bypass
             cookie_file = self._find_cookie_file(url)
             if cookie_file:
                 logger.info(f"🍪 Cookie ishlatilmoqda: {cookie_file}")
                 ydl_opts['cookiefile'] = cookie_file
-            else:
-                logger.warning("⚠️ Cookie fayl topilmadi! YouTube bloklashi mumkin.")
-                # Cookie bo'lmasa, web player urinish
+                # Cookie bo'lsa ham, bir nechta player_client'larni sinab ko'rish
                 ydl_opts['extractor_args'] = {
                     'youtube': {
-                        'player_client': ['web'],
+                        'player_client': ['android', 'ios', 'web'],
+                    }
+                }
+            else:
+                logger.warning("⚠️ Cookie fayl topilmadi! YouTube bloklashi mumkin.")
+                # Cookie bo'lmasa, bir nechta player_client'larni sinab ko'rish
+                ydl_opts['extractor_args'] = {
+                    'youtube': {
+                        'player_client': ['android', 'ios', 'web'],
                     }
                 }
 
