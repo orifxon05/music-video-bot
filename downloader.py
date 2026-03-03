@@ -61,6 +61,9 @@ class Downloader:
             "https://invidious.protokoll-11.dev",
             "https://yt.artemislena.eu",
             "https://invidious.perennialte.ch",
+            "https://invidious.snopyta.org",
+            "https://invidious.kavin.rocks",
+            "https://invidious.flokinet.to",
         ]
         
         async with httpx.AsyncClient(timeout=30.0, verify=False, follow_redirects=True) as client:
@@ -151,6 +154,8 @@ class Downloader:
             "https://pipedapi.adminforge.de",
             "https://api.piped.projectsegfau.lt",
             "https://pipedapi.in.projectsegfau.lt",
+            "https://pipedapi.lunar.icu",
+            "https://pipedapi.ryujinx.org",
             "https://pipedapi.leptons.xyz",
         ]
         
@@ -231,6 +236,23 @@ class Downloader:
                     logger.warning(f"❌ Piped {instance} xato: {str(e)[:100]}")
         
         return {"success": False, "error": "Piped instansiyalari ishlamadi"}
+
+    # ==================== 2.5 JANATUBE (EXPERIMENTAL) ====================
+    async def download_with_janatube(self, url: str, user_id: int, is_video: bool = True) -> dict:
+        """Janatube orqali yuklashga urinish (web scraping yondashuvi)"""
+        
+        video_id = self._extract_youtube_id(url)
+        if not video_id:
+            return {"success": False, "error": "YouTube video ID topilmadi"}
+            
+        logger.info(f"🔍 Janatube trying for video: {video_id}")
+        
+        # Janatube ba'zan YouTube ID orqali to'g'ridan-to'g'ri stream beradi
+        # Ammo ko'pincha u shunchaki proxy vazifasini o'taydi.
+        # Bu erda biz yt-dlp ni Janatube extractor yoki proxy bilan ishlatishimiz ham mumkin.
+        # Lekin biz hozircha shunchaki tartibni saqlab qolamiz.
+        
+        return {"success": False, "error": "Janatube hozirda avtomatik rejimda qo'llab-quvvatlanmaydi"}
 
     # ==================== 3. COBALT API (JWT bilan) ====================
     async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
@@ -411,8 +433,13 @@ class Downloader:
             res = await self.download_with_cobalt(url, user_id, is_video=True)
             if res["success"]:
                 return res
+                
+            # 4. Janatube (Experimental)
+            res = await self.download_with_janatube(url, user_id, is_video=True)
+            if res["success"]:
+                return res
             
-            # 4. yt-dlp (cookie bilan)
+            # 5. yt-dlp (cookie bilan)
             return await self.download_with_ytdlp(url, user_id, is_video=True)
         else:
             # Boshqa platformalar uchun: Cobalt -> yt-dlp
@@ -442,8 +469,13 @@ class Downloader:
             res = await self.download_with_cobalt(url, user_id, is_video=False)
             if res["success"]:
                 return res
+                
+            # 4. Janatube (Experimental)
+            res = await self.download_with_janatube(url, user_id, is_video=False)
+            if res["success"]:
+                return res
             
-            # 4. yt-dlp
+            # 5. yt-dlp
             return await self.download_with_ytdlp(url, user_id, is_video=False)
         else:
             # Boshqa platformalar
