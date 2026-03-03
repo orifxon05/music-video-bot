@@ -13,24 +13,43 @@ class Database:
     def __init__(self):
         self.database_url = DATABASE_URL
         if self.database_url:
-            try:
-                self.conn = psycopg2.connect(self.database_url, sslmode='require')
-                self.create_tables()
-                logger.info("✅ Database ulandi")
-            except Exception as e:
-                logger.error(f"Database init error: {e}")
-                self.conn = None
+            self.conn = self._get_connection()
+            if self.conn:
+                try:
+                    self.create_tables()
+                    logger.info("✅ Database ulandi va tayyor")
+                except Exception as e:
+                    logger.error(f"Table creation error: {e}")
+            else:
+                logger.error("❌ Database-ga ulanib bo'lmadi!")
         else:
             logger.error("❌ DATABASE_URL topilmadi!")
             self.conn = None
 
-    def _get_connection(self):
+    def _get_connection(self, retries=3):
         if not self.database_url: return None
-        try:
-            return psycopg2.connect(self.database_url, sslmode='require')
-        except Exception as e:
-            logger.error(f"Connection error: {e}")
-            return None
+        
+        for i in range(retries):
+            try:
+                # SSL ulanishni yanada barqaror qilish uchun parametrlar
+                conn = psycopg2.connect(
+                    self.database_url, 
+                    sslmode='require',
+                    connect_timeout=10,
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5
+                )
+                return conn
+            except Exception as e:
+                logger.error(f"Connection attempt {i+1} failed: {e}")
+                if i < retries - 1:
+                    import time
+                    time.sleep(2) # 2 soniya kutib ko'rish
+                else:
+                    logger.error("All database connection attempts failed.")
+                    return None
 
     def _execute_safe(self, query, params=None):
         """Har bir so'rovni alohida commit bilan bajarish"""
