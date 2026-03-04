@@ -21,13 +21,17 @@ class Database:
             if self.conn:
                 try:
                     self.create_tables()
-                    logger.info("✅ PostgreSQL ulandi va tayyor")
+                    if self.use_sqlite:
+                        logger.info("✅ SQLite ulandi (Local Fallback)")
+                    else:
+                        logger.info("✅ PostgreSQL ulandi va tayyor")
                 except Exception as e:
                     logger.error(f"Table creation error: {e}")
             else:
                 logger.warning("⚠️ PostgreSQL-ga ulanib bo'lmadi! SQLite-ga o'tilmoqda...")
                 self.use_sqlite = True
                 self.create_tables()
+                logger.info("✅ SQLite ulandi (Local Fallback)")
         else:
             logger.warning("❌ DATABASE_URL topilmadi! SQLite ishlatiladi")
             self.use_sqlite = True
@@ -86,7 +90,10 @@ class Database:
             query = query.replace("NOW()", "CURRENT_TIMESTAMP")
             # INTERVAL 'X days' -> '-X days' (SQLite-da boshqacha)
             import re
-            query = re.sub(r"INTERVAL '(\d+) days'", r" '-\1 days'", query)
+            # PostgreSQL: cached_at < NOW() - INTERVAL '30 days'
+            # SQLite: cached_at < datetime('now', '-30 days')
+            query = re.sub(r"NOW\(\) - INTERVAL '(\d+) days'", r"datetime('now', '-\1 days')", query)
+            query = re.sub(r"CURRENT_TIMESTAMP - INTERVAL '(\d+) days'", r"datetime('now', '-\1 days')", query)
             
         return query
 
@@ -190,24 +197,34 @@ class Database:
         conn = self._get_connection()
         if not conn: return []
         try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            if self.use_sqlite:
+                cur = conn.cursor()
+            else:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                
             query = self._transform_query("SELECT id FROM users")
             cur.execute(query)
             users = cur.fetchall()
             cur.close()
             conn.close()
             return [u['id'] for u in users]
-        except:
+        except Exception as e:
+            logger.error(f"get_users error: {e}")
             return []
 
     def get_stats(self):
         conn = self._get_connection()
         if not conn: return {"total_users": 0, "total_downloads": 0}
         try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            if self.use_sqlite:
+                cur = conn.cursor()
+            else:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                
             query_users = self._transform_query("SELECT COUNT(*) as total_users FROM users")
             cur.execute(query_users)
-            total_users = cur.fetchone()['total_users']
+            res_users = cur.fetchone()
+            total_users = res_users['total_users'] if res_users else 0
             
             # stats jadvali xato bo'lsa ham bot to'xtab qolmasligi uchun
             total_downloads = 0
@@ -221,7 +238,8 @@ class Database:
             cur.close()
             conn.close()
             return {"total_users": total_users, "total_downloads": total_downloads}
-        except:
+        except Exception as e:
+            logger.error(f"get_stats error: {e}")
             return {"total_users": 0, "total_downloads": 0}
 
     def increment_downloads(self):
@@ -234,14 +252,23 @@ class Database:
         conn = self._get_connection()
         if not conn: return []
         try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            if self.use_sqlite:
+                cur = conn.cursor()
+            else:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                
             query = self._transform_query("SELECT channel_id, name, url FROM channels")
             cur.execute(query)
             res = cur.fetchall()
+            # SQLite Row'larni lug'atga o'tkazish
+            if self.use_sqlite:
+                res = [dict(row) for row in res]
             cur.close()
             conn.close()
             return res
-        except: return []
+        except Exception as e:
+            logger.error(f"get_channels error: {e}")
+            return []
 
     def remove_channel(self, channel_id):
         self._execute_safe("DELETE FROM channels WHERE channel_id = %s", (channel_id,))
@@ -262,14 +289,20 @@ class Database:
         conn = self._get_connection()
         if not conn: return None
         try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            if self.use_sqlite:
+                cur = conn.cursor()
+            else:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                
             query = self._transform_query("SELECT url, title, artist, audio_path FROM user_session WHERE user_id = %s")
             cur.execute(query, (user_id,))
             row = cur.fetchone()
             cur.close()
             conn.close()
             return dict(row) if row else None
-        except: return None
+        except Exception as e:
+            logger.error(f"get_user_session error: {e}")
+            return None
 
     def save_search_results(self, result_key, results):
         key_str = str(result_key)
@@ -289,14 +322,20 @@ class Database:
         if not conn: return None
         try:
             key_str = str(result_key) # Stringga o'tkazamiz
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+            if self.use_sqlite:
+                cur = conn.cursor()
+            else:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                
             query = self._transform_query("SELECT results_json FROM search_results WHERE result_key = %s ORDER BY updated_at DESC LIMIT 1")
             cur.execute(query, (key_str,))
             row = cur.fetchone()
             cur.close()
             conn.close()
             return json.loads(row['results_json']) if row else None
-        except: return None
+        except Exception as e:
+            logger.error(f"get_search_results error for {result_key}: {e}")
+            return None
 
     def save_file_cache(self, url_hash, cache_type, file_id, title=""):
         self._execute_safe("""
