@@ -133,4 +133,4 @@ MIT License
 
 ## 👤 Muallif
 
-Telegram: @admin
+Telegram: @Orifxon_05
