@@ -75,7 +75,8 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not_subscribed:
         keyboard = []
         for ch in not_subscribed:
-            keyboard.append([InlineKeyboardButton(f"➕ {ch.get('name', 'Kanalga o\'tish')}", url=ch['url'])])
+            ch_name = ch.get('name', "Kanalga o'tish")
+            keyboard.append([InlineKeyboardButton(f"➕ {ch_name}", url=ch['url'])])
         keyboard.append([InlineKeyboardButton("✅ Tekshirish", callback_data="check_sub")])
 
         msg_text = "❌ Botdan foydalanish uchun quyidagi kanallarga obuna bo'ling:"
@@ -287,7 +288,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE, url: s
                 if sent_audio.audio:
                     cache.save_audio(url, sent_audio.audio.file_id, video_title)
             else:
-                await status_msg.edit_text(f"❌ {audio_result.get('error', 'Audio yuklab bo\'lmadi')}")
+                err_msg = audio_result.get('error', "Audio yuklab bo'lmadi")
+                await status_msg.edit_text(f"❌ {err_msg}")
                 return
         else:
             # Video yuborildi, audio ham fonda saqlab qo'yish (keshda bo'lmasa)
@@ -515,7 +517,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             downloader.cleanup_file(audio_path)
                         await _delete_msg(status_msg)
                     else:
-                        await status_msg.edit_text(f"❌ {audio_result.get('error', 'Yuklab bo\'lmadi')}")
+                        err = audio_result.get('error', "Yuklab bo'lmadi"); await status_msg.edit_text(f"❌ {err}")
             else:
                 await query.message.reply_text("❌ Natija topilmadi yoki kesh o'chgan")
         except Exception as e:
@@ -592,7 +594,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         downloader.cleanup_file(audio_path)
                     await _delete_msg(status_msg)
                 else:
-                    await status_msg.edit_text(f"❌ {audio_result.get('error', 'Qo\'shiq yuklab bo\'lmadi')}")
+                    err_msg = audio_result.get('error', "Qo'shiq yuklab bo'lmadi"); await status_msg.edit_text(f"❌ {err_msg}")
             else:
                 await status_msg.edit_text("😔 YouTube'dan topilmadi")
         except Exception as e:
@@ -706,7 +708,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             downloader.cleanup_file(audio_path)
                         await _delete_msg(status_msg)
                     else:
-                        await status_msg.edit_text(f"❌ {audio_result.get('error', 'Yuklab bo\'lmadi')}")
+                        err = audio_result.get('error', "Yuklab bo'lmadi"); await status_msg.edit_text(f"❌ {err}")
                 else:
                     await query.message.reply_text("❌ URL topilmadi")
             else:
