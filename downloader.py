@@ -4,11 +4,11 @@ import os
 import httpx
 import yt_dlp
 import re
-import json
-from config import DOWNLOAD_PATH, PROXY_URL, COBALT_API, MAX_FILE_SIZE_MB
+from config import DOWNLOAD_PATH, PROXY_URL, MAX_FILE_SIZE_MB
 import pathlib
 
 logger = logging.getLogger(__name__)
+
 
 class Downloader:
     def __init__(self):
@@ -29,12 +29,9 @@ class Downloader:
             candidates = ['www.instagram.com_cookies.txt', 'instagram_cookies.txt', 'cookies.txt']
         else:
             candidates = ['cookies.txt']
-
         for cookie_file in candidates:
             if os.path.exists(cookie_file):
-                abs_path = pathlib.Path(cookie_file).resolve()
-                logger.info(f"🍪 Cookie fayli topildi: {abs_path}")
-                return str(abs_path)
+                return str(pathlib.Path(cookie_file).resolve())
         return None
 
     def _is_youtube_url(self, url: str) -> bool:
@@ -51,7 +48,7 @@ class Downloader:
                 return match.group(1)
         return None
 
-    # ==================== 1. INVIDIOUS API ====================
+    # ==================== 1. INVIDIOUS ====================
     async def download_with_invidious(self, url: str, user_id: int, is_video: bool = True) -> dict:
         video_id = self._extract_youtube_id(url)
         if not video_id:
@@ -59,26 +56,33 @@ class Downloader:
 
         INVIDIOUS_INSTANCES = [
             "https://inv.nadeko.net",
+            "https://inv.tux.pizza",
+            "https://invidious.privacydev.net",
+            "https://invidious.fdn.fr",
+            "https://invidious.io.lol",
+            "https://y.com.sb",
+            "https://invidious.lunar.icu",
+            "https://invidious.tiekoetter.com",
+            "https://invidious.projectsegfau.lt",
             "https://invidious.nerdvpn.de",
-            "https://invidious.privacyredirect.com",
             "https://iv.datura.network",
             "https://yt.artemislena.eu",
-            "https://invidious.perennialte.ch",
-            "https://invidious.kavin.rocks",
-            "https://invidious.flokinet.to",
         ]
 
-        async with httpx.AsyncClient(timeout=30.0, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, verify=False, follow_redirects=True) as client:
             for instance in INVIDIOUS_INSTANCES:
                 try:
-                    api_url = f"{instance}/api/v1/videos/{video_id}"
-                    logger.info(f"🔍 Invidious trying: {instance}")
-
-                    resp = await client.get(api_url, headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                    })
-
+                    resp = await client.get(
+                        f"{instance}/api/v1/videos/{video_id}",
+                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                    )
                     if resp.status_code != 200:
+                        logger.warning(f"⚠️ Invidious {instance}: {resp.status_code}")
+                        continue
+
+                    text = resp.text.strip()
+                    if not text or not text.startswith('{'):
+                        logger.warning(f"⚠️ Invidious {instance}: bo'sh javob")
                         continue
 
                     data = resp.json()
@@ -86,98 +90,111 @@ class Downloader:
                     dl_url = None
 
                     if is_video:
-                        formats = data.get("formatStreams", [])
-                        for fmt in formats:
+                        for fmt in data.get("formatStreams", []):
                             if fmt.get("type", "").startswith("video/mp4"):
-                                quality = fmt.get("qualityLabel", "")
-                                if any(q in quality for q in ["720p", "480p", "360p"]):
+                                if any(q in fmt.get("qualityLabel", "") for q in ["720p", "480p", "360p"]):
                                     dl_url = fmt.get("url")
                                     break
                         if not dl_url:
-                            for fmt in formats:
+                            for fmt in data.get("formatStreams", []):
                                 if fmt.get("type", "").startswith("video/mp4"):
                                     dl_url = fmt.get("url")
                                     break
                     else:
-                        adaptive = data.get("adaptiveFormats", [])
-                        for fmt in adaptive:
+                        best_bitrate = 0
+                        for fmt in data.get("adaptiveFormats", []):
                             if fmt.get("type", "").startswith("audio/"):
-                                dl_url = fmt.get("url")
-                                break
+                                br = fmt.get("bitrate", 0)
+                                if br > best_bitrate:
+                                    best_bitrate = br
+                                    dl_url = fmt.get("url")
 
                     if not dl_url:
+                        logger.warning(f"⚠️ Invidious {instance}: URL topilmadi")
                         continue
 
                     filename = f"{user_id}_{os.urandom(4).hex()}"
                     ext = "mp4" if is_video else "mp3"
                     filepath = os.path.join(self.download_path, f"{filename}.{ext}")
 
-                    async with client.stream("GET", dl_url) as response:
+                    async with client.stream("GET", dl_url, timeout=120.0) as response:
                         if response.status_code != 200:
                             continue
                         with open(filepath, "wb") as f:
-                            async for chunk in response.aiter_bytes(chunk_size=8192):
+                            async for chunk in response.aiter_bytes(chunk_size=65536):
                                 f.write(chunk)
 
-                    if os.path.exists(filepath) and os.path.getsize(filepath) > 10_000:
+                    size = os.path.getsize(filepath) if os.path.exists(filepath) else 0
+                    if size > 10_000:
                         logger.info(f"✅ Invidious success: {instance}")
-                        return {"success": True, "filepath": filepath, "title": title, "is_video": is_video}
+                        return {
+                            "success": True, "filepath": filepath, "title": title,
+                            "uploader": data.get("author", ""), "duration": data.get("lengthSeconds", 0),
+                            "platform": "youtube"
+                        }
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
 
                 except Exception as e:
                     logger.warning(f"❌ Invidious {instance}: {str(e)[:80]}")
 
-        return {"success": False, "error": "Invidious instansiyalari ishlamadi"}
+        return {"success": False, "error": "Invidious ishlamadi"}
 
-    # ==================== 2. PIPED API ====================
+    # ==================== 2. PIPED ====================
     async def download_with_piped(self, url: str, user_id: int, is_video: bool = True) -> dict:
         video_id = self._extract_youtube_id(url)
         if not video_id:
             return {"success": False, "error": "YouTube video ID topilmadi"}
 
         PIPED_INSTANCES = [
-            "https://pipedapi.kavin.rocks",
-            "https://pipedapi.adminforge.de",
+            "https://piped-api.garudalinux.org",
+            "https://pipedapi.tokhmi.xyz",
+            "https://pipedapi.moomoo.me",
+            "https://pa.il.senny.xyz",
             "https://api.piped.projectsegfau.lt",
-            "https://pipedapi.lunar.icu",
+            "https://pipedapi.kavin.rocks",
         ]
 
-        async with httpx.AsyncClient(timeout=30.0, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, verify=False, follow_redirects=True) as client:
             for instance in PIPED_INSTANCES:
                 try:
-                    api_url = f"{instance}/streams/{video_id}"
-                    logger.info(f"🔍 Piped trying: {instance}")
-
-                    resp = await client.get(api_url, headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                    })
-
+                    resp = await client.get(
+                        f"{instance}/streams/{video_id}",
+                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                    )
                     if resp.status_code != 200:
+                        logger.warning(f"⚠️ Piped {instance}: {resp.status_code}")
+                        continue
+
+                    text = resp.text.strip()
+                    if not text or not text.startswith('{'):
+                        logger.warning(f"⚠️ Piped {instance}: bo'sh javob")
                         continue
 
                     data = resp.json()
+                    if data.get("error"):
+                        continue
+
                     title = data.get("title", "video")
                     dl_url = None
 
                     if is_video:
-                        streams = data.get("videoStreams", [])
-                        for stream in streams:
+                        for stream in data.get("videoStreams", []):
                             if not stream.get("videoOnly", True):
-                                quality = stream.get("quality", "")
-                                if "720p" in quality or "480p" in quality:
+                                if "720p" in stream.get("quality", "") or "480p" in stream.get("quality", ""):
                                     dl_url = stream.get("url")
                                     break
                         if not dl_url:
-                            for stream in streams:
+                            for stream in data.get("videoStreams", []):
                                 if not stream.get("videoOnly", True):
                                     dl_url = stream.get("url")
                                     break
                     else:
-                        streams = data.get("audioStreams", [])
-                        best_bitrate = 0
-                        for stream in streams:
-                            bitrate = stream.get("bitrate", 0)
-                            if bitrate > best_bitrate:
-                                best_bitrate = bitrate
+                        best_br = 0
+                        for stream in data.get("audioStreams", []):
+                            br = stream.get("bitrate", 0)
+                            if br > best_br:
+                                best_br = br
                                 dl_url = stream.get("url")
 
                     if not dl_url:
@@ -187,91 +204,49 @@ class Downloader:
                     ext = "mp4" if is_video else "mp3"
                     filepath = os.path.join(self.download_path, f"{filename}.{ext}")
 
-                    async with client.stream("GET", dl_url) as response:
+                    async with client.stream("GET", dl_url, timeout=120.0) as response:
                         if response.status_code != 200:
                             continue
                         with open(filepath, "wb") as f:
-                            async for chunk in response.aiter_bytes(chunk_size=8192):
+                            async for chunk in response.aiter_bytes(chunk_size=65536):
                                 f.write(chunk)
 
-                    if os.path.exists(filepath) and os.path.getsize(filepath) > 10_000:
+                    size = os.path.getsize(filepath) if os.path.exists(filepath) else 0
+                    if size > 10_000:
                         logger.info(f"✅ Piped success: {instance}")
-                        return {"success": True, "filepath": filepath, "title": title, "is_video": is_video}
+                        return {
+                            "success": True, "filepath": filepath, "title": title,
+                            "uploader": data.get("uploader", ""), "duration": data.get("duration", 0),
+                            "platform": "youtube"
+                        }
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
 
                 except Exception as e:
                     logger.warning(f"❌ Piped {instance}: {str(e)[:80]}")
 
-        return {"success": False, "error": "Piped instansiyalari ishlamadi"}
+        return {"success": False, "error": "Piped ishlamadi"}
 
-    # ==================== 3. COBALT API ====================
-    async def download_with_cobalt(self, url: str, user_id: int, is_video: bool = True) -> dict:
-        SERVERS = [
-            "https://cobalt-api.meowing.de",
-            "https://capi.3kh0.net",
-            "https://cobalt-backend.canine.tools",
-            "https://api.cobalt.tools",
+    # ==================== 3. YT-DLP ====================
+    async def download_with_ytdlp(self, url: str, user_id: int, is_video: bool = True) -> dict:
+        # Bir nechta player_client kombinatsiyalarini sinab ko'rish
+        player_clients_list = [
+            ['tv_embedded', 'android', 'web'],
+            ['mweb', 'ios'],
+            ['tv', 'android_vr'],
         ]
 
-        payload = {
-            "url": url,
-            "videoQuality": "720",
-            "audioFormat": "mp3",
-            "filenamePattern": "basic",
-            "isAudioOnly": not is_video,
-            "downloadMode": "audio" if not is_video else "auto",
-            "audioBitrate": "128"
-        }
+        for player_clients in player_clients_list:
+            result = await self._ytdlp_attempt(url, user_id, is_video, player_clients)
+            if result.get("success"):
+                return result
+            # Bot detection bo'lmasa, boshqa player_client sinab ko'rmaymiz
+            if "Sign in" not in result.get("error", "") and "bot" not in result.get("error", "").lower():
+                break
 
-        async with httpx.AsyncClient(timeout=45.0, verify=False, follow_redirects=True) as client:
-            for server_url in SERVERS:
-                try:
-                    base_domain = re.search(r'https?://[^/]+', server_url).group(0)
-                    headers = {
-                        "Accept": "application/json",
-                        "Content-Type": "application/json",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                        "Origin": base_domain,
-                        "Referer": base_domain + "/"
-                    }
+        return result if 'result' in dir() else {"success": False, "error": "yt-dlp ishlamadi"}
 
-                    logger.info(f"🔍 Cobalt trying: {server_url}")
-                    resp = await client.post(server_url, json=payload, headers=headers)
-
-                    if resp.status_code != 200:
-                        continue
-
-                    data = resp.json()
-                    dl_url = data.get("url")
-                    if not dl_url:
-                        continue
-
-                    filename = f"{user_id}_{os.urandom(4).hex()}"
-                    ext = "mp4" if is_video else "mp3"
-                    filepath = os.path.join(self.download_path, f"{filename}.{ext}")
-
-                    async with client.stream("GET", dl_url) as response:
-                        if response.status_code != 200:
-                            continue
-                        with open(filepath, "wb") as f:
-                            async for chunk in response.aiter_bytes():
-                                f.write(chunk)
-
-                    if os.path.exists(filepath) and os.path.getsize(filepath) > 10_000:
-                        logger.info(f"✅ Cobalt success: {server_url}")
-                        return {
-                            "success": True,
-                            "filepath": filepath,
-                            "title": data.get("filename", "audio"),
-                            "is_video": is_video
-                        }
-
-                except Exception as e:
-                    logger.warning(f"❌ Cobalt {server_url}: {str(e)[:80]}")
-
-        return {"success": False, "error": "Cobalt serverlari ishlamadi"}
-
-    # ==================== 4. YT-DLP ====================
-    async def download_with_ytdlp(self, url: str, user_id: int, is_video: bool = True) -> dict:
+    async def _ytdlp_attempt(self, url: str, user_id: int, is_video: bool, player_clients: list) -> dict:
         try:
             filename = f"{user_id}_{os.urandom(4).hex()}"
             filepath_template = os.path.join(self.download_path, f"{filename}.%(ext)s")
@@ -286,7 +261,7 @@ class Downloader:
                 'retries': 3,
                 'extractor_args': {
                     'youtube': {
-                        'player_client': ['android', 'ios', 'web'],
+                        'player_client': player_clients,
                     }
                 },
             }
@@ -304,25 +279,19 @@ class Downloader:
             cookie_file = self._find_cookie_file(url)
             if cookie_file:
                 ydl_opts['cookiefile'] = cookie_file
-                logger.info(f"✅ Cookie ishlatilmoqda: {cookie_file}")
 
             if PROXY_URL:
                 ydl_opts['proxy'] = PROXY_URL
-                logger.info(f"🔀 Proxy ishlatilmoqda: {PROXY_URL}")
 
             loop = asyncio.get_event_loop()
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=True))
-                title = info.get('title', 'video') if info else 'video'
-                uploader = info.get('uploader', '') if info else ''
-                duration = info.get('duration', 0) if info else 0
-                platform = info.get('extractor', 'unknown') if info else 'unknown'
+            info = await loop.run_in_executor(
+                None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=True)
+            )
 
-            # Yuklangan faylni topish
+            title = info.get('title', 'video') if info else 'video'
             ext = "mp3" if not is_video else "mp4"
             filepath = os.path.join(self.download_path, f"{filename}.{ext}")
 
-            # Agar aniq fayl yo'q bo'lsa, papkada qidirish
             if not os.path.exists(filepath):
                 for f in os.listdir(self.download_path):
                     if f.startswith(filename):
@@ -330,83 +299,109 @@ class Downloader:
                         break
 
             if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
-                logger.info(f"✅ yt-dlp success: {filepath}")
+                logger.info(f"✅ yt-dlp success (clients={player_clients})")
                 return {
-                    "success": True,
-                    "filepath": filepath,
-                    "title": title,
-                    "uploader": uploader,
-                    "duration": duration,
-                    "platform": platform,
+                    "success": True, "filepath": filepath, "title": title,
+                    "uploader": info.get('uploader', '') if info else '',
+                    "duration": info.get('duration', 0) if info else 0,
+                    "platform": info.get('extractor', 'unknown') if info else 'unknown'
                 }
 
-            return {"success": False, "error": "yt-dlp: fayl yaratilmadi"}
+            return {"success": False, "error": "Fayl yaratilmadi"}
 
         except Exception as e:
-            error_str = str(e)
-            logger.error(f"yt-dlp error: {error_str[:150]}")
-            return {"success": False, "error": f"yt-dlp xatosi: {error_str[:100]}"}
+            logger.error(f"yt-dlp ({player_clients}): {str(e)[:120]}")
+            return {"success": False, "error": str(e)[:100]}
 
-    # ==================== ASOSIY FUNKSIYALAR ====================
+    # ==================== 4. BOSHQA PLATFORMALAR ====================
+    async def download_non_youtube(self, url: str, user_id: int, is_video: bool = True) -> dict:
+        try:
+            filename = f"{user_id}_{os.urandom(4).hex()}"
+            ydl_opts = {
+                'outtmpl': os.path.join(self.download_path, f"{filename}.%(ext)s"),
+                'quiet': True,
+                'no_warnings': True,
+                'nocheckcertificate': True,
+                'socket_timeout': 30,
+                'retries': 3,
+                'format': 'best[filesize<50M]/best' if is_video else 'bestaudio/best',
+            }
+            if not is_video:
+                ydl_opts['postprocessors'] = [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3', 'preferredquality': '192',
+                }]
+
+            cookie_file = self._find_cookie_file(url)
+            if cookie_file:
+                ydl_opts['cookiefile'] = cookie_file
+            if PROXY_URL:
+                ydl_opts['proxy'] = PROXY_URL
+
+            loop = asyncio.get_event_loop()
+            info = await loop.run_in_executor(
+                None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=True)
+            )
+            title = info.get('title', 'video') if info else 'video'
+
+            ext = "mp3" if not is_video else "mp4"
+            filepath = os.path.join(self.download_path, f"{filename}.{ext}")
+            if not os.path.exists(filepath):
+                for f in os.listdir(self.download_path):
+                    if f.startswith(filename):
+                        filepath = os.path.join(self.download_path, f)
+                        break
+
+            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                return {
+                    "success": True, "filepath": filepath, "title": title,
+                    "uploader": info.get('uploader', '') if info else '',
+                    "duration": info.get('duration', 0) if info else 0,
+                    "platform": info.get('extractor', 'unknown') if info else 'unknown'
+                }
+            return {"success": False, "error": "Fayl yuklanmadi"}
+        except Exception as e:
+            return {"success": False, "error": str(e)[:100]}
+
+    # ==================== ASOSIY ====================
     async def download_video(self, url: str, user_id: int) -> dict:
-        """Videoni yuklab olish — fallback zanjiri"""
         if self._is_youtube_url(url):
             logger.info("📺 YouTube video yuklanmoqda...")
             for method in [
                 lambda: self.download_with_invidious(url, user_id, is_video=True),
                 lambda: self.download_with_piped(url, user_id, is_video=True),
-                lambda: self.download_with_cobalt(url, user_id, is_video=True),
                 lambda: self.download_with_ytdlp(url, user_id, is_video=True),
             ]:
                 res = await method()
                 if res.get("success"):
                     return res
-            return {"success": False, "error": "Barcha usullar ishlamadi. YouTube bu serverni bloklaган bo'lishi mumkin."}
+            return {"success": False, "error": "YouTube bu serverdan yuklab bo'lmaydi. Cookie yangilash yoki proxy kerak."}
         else:
-            for method in [
-                lambda: self.download_with_cobalt(url, user_id, is_video=True),
-                lambda: self.download_with_ytdlp(url, user_id, is_video=True),
-            ]:
-                res = await method()
-                if res.get("success"):
-                    return res
-            return {"success": False, "error": "Video yuklab bo'lmadi"}
+            return await self.download_non_youtube(url, user_id, is_video=True)
 
     async def download_audio(self, url: str, user_id: int) -> dict:
-        """Audioni yuklab olish — fallback zanjiri"""
         if self._is_youtube_url(url):
             logger.info("🎵 YouTube audio yuklanmoqda...")
             for method in [
                 lambda: self.download_with_invidious(url, user_id, is_video=False),
                 lambda: self.download_with_piped(url, user_id, is_video=False),
-                lambda: self.download_with_cobalt(url, user_id, is_video=False),
                 lambda: self.download_with_ytdlp(url, user_id, is_video=False),
             ]:
                 res = await method()
                 if res.get("success"):
                     return res
-            return {"success": False, "error": "Barcha usullar ishlamadi."}
+            return {"success": False, "error": "YouTube bu serverdan yuklab bo'lmaydi."}
         else:
-            for method in [
-                lambda: self.download_with_cobalt(url, user_id, is_video=False),
-                lambda: self.download_with_ytdlp(url, user_id, is_video=False),
-            ]:
-                res = await method()
-                if res.get("success"):
-                    return res
-            return {"success": False, "error": "Audio yuklab bo'lmadi"}
+            return await self.download_non_youtube(url, user_id, is_video=False)
 
     def cleanup_file(self, filepath: str):
-        """Faylni xavfsiz o'chirish"""
         try:
             if filepath and os.path.exists(filepath):
                 os.remove(filepath)
-                logger.debug(f"🗑 Fayl o'chirildi: {filepath}")
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
 
     def cleanup_user_files(self, user_id: int):
-        """Foydalanuvchiga tegishli barcha fayllarni o'chirish"""
         try:
             for f in os.listdir(self.download_path):
                 if f.startswith(str(user_id)):
