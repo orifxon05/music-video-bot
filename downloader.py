@@ -9,6 +9,14 @@ import pathlib
 
 logger = logging.getLogger(__name__)
 
+# ==================== PO_TOKEN SOZLAMASI ====================
+# YouTube bot blokini chetlab o'tish uchun po_token kerak.
+# Quyidagi saytdan oling: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+# F12 -> Console -> ytcfg.get("VISITOR_DATA") va po_token ni oling
+# Yoki Railway Environment Variables ga PO_TOKEN va VISITOR_DATA qo'shing
+PO_TOKEN = os.getenv("PO_TOKEN", "")
+VISITOR_DATA = os.getenv("VISITOR_DATA", "")
+
 
 class Downloader:
     def __init__(self):
@@ -86,6 +94,10 @@ class Downloader:
                         continue
 
                     data = resp.json()
+                    if data.get("error"):
+                        logger.warning(f"⚠️ Invidious {instance}: {data.get('error')}")
+                        continue
+
                     title = data.get("title", "video")
                     dl_url = None
 
@@ -227,29 +239,43 @@ class Downloader:
 
         return {"success": False, "error": "Piped ishlamadi"}
 
-    # ==================== 3. YT-DLP ====================
+    # ==================== 3. YT-DLP (PO_TOKEN BILAN) ====================
     async def download_with_ytdlp(self, url: str, user_id: int, is_video: bool = True) -> dict:
-        # Bir nechta player_client kombinatsiyalarini sinab ko'rish
+        """yt-dlp — po_token bilan YouTube bot blokini chetlab o'tish"""
+
         player_clients_list = [
-            ['tv_embedded', 'android', 'web'],
-            ['mweb', 'ios'],
-            ['tv', 'android_vr'],
+            ['tv_embedded', 'web'],
+            ['android', 'ios'],
+            ['mweb', 'tv'],
         ]
 
         for player_clients in player_clients_list:
             result = await self._ytdlp_attempt(url, user_id, is_video, player_clients)
             if result.get("success"):
                 return result
-            # Bot detection bo'lmasa, boshqa player_client sinab ko'rmaymiz
-            if "Sign in" not in result.get("error", "") and "bot" not in result.get("error", "").lower():
-                break
+            err = result.get("error", "")
+            if "Sign in" not in err and "bot" not in err.lower() and "confirm" not in err.lower():
+                return result
 
-        return result if 'result' in dir() else {"success": False, "error": "yt-dlp ishlamadi"}
+        return {"success": False, "error": "yt-dlp: YouTube bu serverdan yuklab bo'lmaydi"}
 
     async def _ytdlp_attempt(self, url: str, user_id: int, is_video: bool, player_clients: list) -> dict:
         try:
             filename = f"{user_id}_{os.urandom(4).hex()}"
             filepath_template = os.path.join(self.download_path, f"{filename}.%(ext)s")
+
+            extractor_args = {
+                'youtube': {
+                    'player_client': player_clients,
+                }
+            }
+
+            # PO_TOKEN mavjud bo'lsa qo'shish (bot blokini chetlab o'tadi)
+            if PO_TOKEN:
+                extractor_args['youtube']['po_token'] = [f'web+{PO_TOKEN}']
+                if VISITOR_DATA:
+                    extractor_args['youtube']['visitor_data'] = [VISITOR_DATA]
+                logger.info(f"🔑 po_token ishlatilmoqda")
 
             ydl_opts = {
                 'outtmpl': filepath_template,
@@ -259,15 +285,11 @@ class Downloader:
                 'geo_bypass': True,
                 'socket_timeout': 30,
                 'retries': 3,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': player_clients,
-                    }
-                },
+                'extractor_args': extractor_args,
             }
 
             if is_video:
-                ydl_opts['format'] = 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+                ydl_opts['format'] = 'bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo+bestaudio/best'
             else:
                 ydl_opts['format'] = 'bestaudio/best'
                 ydl_opts['postprocessors'] = [{
@@ -375,7 +397,7 @@ class Downloader:
                 res = await method()
                 if res.get("success"):
                     return res
-            return {"success": False, "error": "YouTube bu serverdan yuklab bo'lmaydi. Cookie yangilash yoki proxy kerak."}
+            return {"success": False, "error": "❌ YouTube yuklab bo'lmadi. PO_TOKEN kerak — Railway Variables ga qo'shing."}
         else:
             return await self.download_non_youtube(url, user_id, is_video=True)
 
@@ -390,7 +412,7 @@ class Downloader:
                 res = await method()
                 if res.get("success"):
                     return res
-            return {"success": False, "error": "YouTube bu serverdan yuklab bo'lmaydi."}
+            return {"success": False, "error": "❌ YouTube yuklab bo'lmadi. PO_TOKEN kerak."}
         else:
             return await self.download_non_youtube(url, user_id, is_video=False)
 
