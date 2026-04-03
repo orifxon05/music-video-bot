@@ -244,9 +244,10 @@ class Downloader:
         """yt-dlp — po_token bilan YouTube bot blokini chetlab o'tish"""
 
         player_clients_list = [
-            ['tv_embedded', 'web'],
-            ['android', 'ios'],
-            ['mweb', 'tv'],
+            ['web'],
+            ['android'],
+            ['ios'],
+            ['tv'],
         ]
 
         for player_clients in player_clients_list:
@@ -289,9 +290,17 @@ class Downloader:
             }
 
             if is_video:
-                ydl_opts['format'] = 'bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo+bestaudio/best'
+                # Eng moslashuvchan format — qanday format bo'lsa ham yuklab oladi
+                ydl_opts['format'] = (
+                    'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]'
+                    '/bestvideo[height<=720]+bestaudio'
+                    '/best[height<=720]'
+                    '/bestvideo+bestaudio'
+                    '/best'
+                )
+                ydl_opts['merge_output_format'] = 'mp4'
             else:
-                ydl_opts['format'] = 'bestaudio/best'
+                ydl_opts['format'] = 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best'
                 ydl_opts['postprocessors'] = [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
