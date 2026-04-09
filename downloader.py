@@ -287,6 +287,9 @@ class Downloader:
                 'socket_timeout': 30,
                 'retries': 3,
                 'extractor_args': extractor_args,
+                # Format tekshirishni o'chirish — "Requested format not available" xatosini hal qiladi
+                'check_formats': False,
+                'allow_unplayable_formats': True,
             }
 
             if not is_video:
