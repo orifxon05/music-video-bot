@@ -291,16 +291,10 @@ class Downloader:
 
             if is_video:
                 # Eng moslashuvchan format — qanday format bo'lsa ham yuklab oladi
-                ydl_opts['format'] = (
-                    'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]'
-                    '/bestvideo[height<=720]+bestaudio'
-                    '/best[height<=720]'
-                    '/bestvideo+bestaudio'
-                    '/best'
-                )
+                ydl_opts['format'] = 'best'
                 ydl_opts['merge_output_format'] = 'mp4'
             else:
-                ydl_opts['format'] = 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best'
+                ydl_opts['format'] = 'bestaudio/best'
                 ydl_opts['postprocessors'] = [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
