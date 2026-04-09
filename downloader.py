@@ -244,9 +244,9 @@ class Downloader:
         """yt-dlp — po_token bilan YouTube bot blokini chetlab o'tish"""
 
         player_clients_list = [
-            ['web'],
             ['android'],
             ['ios'],
+            ['web'],
             ['tv'],
         ]
 
@@ -289,17 +289,13 @@ class Downloader:
                 'extractor_args': extractor_args,
             }
 
-            if is_video:
-                # Eng moslashuvchan format — qanday format bo'lsa ham yuklab oladi
-                ydl_opts['format'] = 'best'
-                ydl_opts['merge_output_format'] = 'mp4'
-            else:
-                ydl_opts['format'] = 'bestaudio/best'
+            if not is_video:
                 ydl_opts['postprocessors'] = [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
                 }]
+            # format ni umuman belgilamaymiz — yt-dlp o'zi eng yaxshisini tanlaydi
 
             cookie_file = self._find_cookie_file(url)
             if cookie_file:
