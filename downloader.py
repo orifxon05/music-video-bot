@@ -239,6 +239,103 @@ class Downloader:
 
         return {"success": False, "error": "Piped ishlamadi"}
 
+
+    # ==================== 3.5. TO'G'RIDAN SCRAPING ====================
+    async def download_with_scraping(self, url: str, user_id: int, is_video: bool = True) -> dict:
+        """YouTube sahifasini to'g'ridan scraping qilib audio URL olish"""
+        video_id = self._extract_youtube_id(url)
+        if not video_id:
+            return {"success": False, "error": "Video ID topilmadi"}
+
+        HEADERS = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+
+        try:
+            import json as _json
+            yt_url = f"https://www.youtube.com/watch?v={video_id}"
+
+            async with httpx.AsyncClient(timeout=20.0, headers=HEADERS, follow_redirects=True) as client:
+                resp = await client.get(yt_url)
+                if resp.status_code != 200:
+                    return {"success": False, "error": f"YouTube sahifasi ochmadi: {resp.status_code}"}
+
+                html = resp.text
+
+                # ytInitialPlayerResponse ni olish
+                match = re.search(r'ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var|const|let|<)', html)
+                if not match:
+                    match = re.search(r'ytInitialPlayerResponse\s*=\s*(\{.+?\})', html)
+
+                if not match:
+                    return {"success": False, "error": "Player response topilmadi"}
+
+                player_data = _json.loads(match.group(1))
+                streaming = player_data.get("streamingData", {})
+                title = player_data.get("videoDetails", {}).get("title", "video")
+                author = player_data.get("videoDetails", {}).get("author", "")
+                duration = int(player_data.get("videoDetails", {}).get("lengthSeconds", 0))
+
+                dl_url = None
+
+                if not is_video:
+                    # Audio formatlarini topish
+                    formats = streaming.get("adaptiveFormats", [])
+                    best_bitrate = 0
+                    for fmt in formats:
+                        mime = fmt.get("mimeType", "")
+                        if "audio" in mime:
+                            bitrate = fmt.get("bitrate", 0)
+                            if bitrate > best_bitrate and fmt.get("url"):
+                                best_bitrate = bitrate
+                                dl_url = fmt["url"]
+                else:
+                    # Video formatlarini topish
+                    formats = streaming.get("formats", [])
+                    for fmt in formats:
+                        if fmt.get("url") and fmt.get("height", 0) <= 720:
+                            dl_url = fmt["url"]
+                            break
+                    if not dl_url and formats:
+                        dl_url = formats[0].get("url")
+
+                if not dl_url:
+                    return {"success": False, "error": "Stream URL topilmadi (cheklangan video bo\'lishi mumkin)"}
+
+                # Faylni yuklash
+                filename = f"{user_id}_{os.urandom(4).hex()}"
+                ext = "mp4" if is_video else "mp3"
+                filepath = os.path.join(self.download_path, f"{filename}.{ext}")
+
+                logger.info(f"⬇️ Scraping orqali yuklanmoqda...")
+                async with client.stream("GET", dl_url, timeout=120.0) as response:
+                    if response.status_code != 200:
+                        return {"success": False, "error": f"Yuklash xatosi: {response.status_code}"}
+                    with open(filepath, "wb") as f:
+                        async for chunk in response.aiter_bytes(chunk_size=65536):
+                            f.write(chunk)
+
+                size = os.path.getsize(filepath) if os.path.exists(filepath) else 0
+                if size > 10_000:
+                    logger.info(f"✅ Scraping success! ({size // 1024}KB)")
+                    return {
+                        "success": True, "filepath": filepath,
+                        "title": title, "uploader": author,
+                        "duration": duration, "platform": "youtube"
+                    }
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                return {"success": False, "error": "Fayl juda kichik"}
+
+        except Exception as e:
+            logger.warning(f"❌ Scraping xato: {str(e)[:100]}")
+            return {"success": False, "error": str(e)[:100]}
+
     # ==================== 3. YT-DLP (PO_TOKEN BILAN) ====================
     async def download_with_ytdlp(self, url: str, user_id: int, is_video: bool = True) -> dict:
         """yt-dlp — po_token bilan YouTube bot blokini chetlab o'tish"""
@@ -392,6 +489,7 @@ class Downloader:
         if self._is_youtube_url(url):
             logger.info("📺 YouTube video yuklanmoqda...")
             for method in [
+                lambda: self.download_with_scraping(url, user_id, is_video=True),
                 lambda: self.download_with_invidious(url, user_id, is_video=True),
                 lambda: self.download_with_piped(url, user_id, is_video=True),
                 lambda: self.download_with_ytdlp(url, user_id, is_video=True),
@@ -407,6 +505,7 @@ class Downloader:
         if self._is_youtube_url(url):
             logger.info("🎵 YouTube audio yuklanmoqda...")
             for method in [
+                lambda: self.download_with_scraping(url, user_id, is_video=False),
                 lambda: self.download_with_invidious(url, user_id, is_video=False),
                 lambda: self.download_with_piped(url, user_id, is_video=False),
                 lambda: self.download_with_ytdlp(url, user_id, is_video=False),
