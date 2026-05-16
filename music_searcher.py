@@ -25,7 +25,7 @@ class MusicSearcher:
             if h > 0:
                 return f"{h}:{m:02d}:{s:02d}"
             return f"{m}:{s:02d}"
-        except:
+        except (ValueError, TypeError):
             return "0:00"
 
     async def search_by_name(self, query: str, limit: int = 10) -> dict:
@@ -91,9 +91,8 @@ class MusicSearcher:
                 }
                 search_query = f"ytsearch{limit}:{query}"
                 
-                loop = asyncio.get_event_loop()
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    data = await loop.run_in_executor(None, lambda: ydl.extract_info(search_query, download=False))
+                    data = await asyncio.to_thread(lambda: ydl.extract_info(search_query, download=False))
                     
                 if data and 'entries' in data:
                     for entry in data['entries']:

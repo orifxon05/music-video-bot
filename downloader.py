@@ -1,19 +1,15 @@
 import logging
 import asyncio
 import os
+import time
 import httpx
 import yt_dlp
 import re
-from config import DOWNLOAD_PATH, PROXY_URL, MAX_FILE_SIZE_MB
 import pathlib
+from config import DOWNLOAD_PATH, PROXY_URL, MAX_FILE_SIZE_MB
 
 logger = logging.getLogger(__name__)
 
-# ==================== PO_TOKEN SOZLAMASI ====================
-# YouTube bot blokini chetlab o'tish uchun po_token kerak.
-# Quyidagi saytdan oling: https://www.youtube.com/watch?v=dQw4w9WgXcQ
-# F12 -> Console -> ytcfg.get("VISITOR_DATA") va po_token ni oling
-# Yoki Railway Environment Variables ga PO_TOKEN va VISITOR_DATA qo'shing
 PO_TOKEN = os.getenv("PO_TOKEN", "")
 VISITOR_DATA = os.getenv("VISITOR_DATA", "")
 
@@ -26,9 +22,14 @@ class Downloader:
     def is_supported_url(self, url: str) -> bool:
         supported_domains = [
             'youtube.com', 'youtu.be', 'instagram.com', 'tiktok.com',
-            'facebook.com', 'twitter.com', 'x.com', 'soundcloud.com'
+            'facebook.com', 'twitter.com', 'x.com', 'soundcloud.com',
+            'pinterest.com', 'pin.it', 'reddit.com', 'v.redd.it',
+            'open.spotify.com',
         ]
         return any(domain in url.lower() for domain in supported_domains)
+
+    def _is_spotify_url(self, url: str) -> bool:
+        return 'open.spotify.com' in url.lower()
 
     def _find_cookie_file(self, url: str) -> str | None:
         if any(d in url.lower() for d in ['youtube.com', 'youtu.be']):
@@ -77,7 +78,7 @@ class Downloader:
             "https://yt.artemislena.eu",
         ]
 
-        async with httpx.AsyncClient(timeout=15.0, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             for instance in INVIDIOUS_INSTANCES:
                 try:
                     resp = await client.get(
@@ -167,7 +168,7 @@ class Downloader:
             "https://pipedapi.kavin.rocks",
         ]
 
-        async with httpx.AsyncClient(timeout=15.0, verify=False, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             for instance in PIPED_INSTANCES:
                 try:
                     resp = await client.get(
@@ -336,11 +337,13 @@ class Downloader:
             logger.warning(f"❌ Scraping xato: {str(e)[:100]}")
             return {"success": False, "error": str(e)[:100]}
 
-    # ==================== 3. YT-DLP (PO_TOKEN BILAN) ====================
+    # ==================== 3. YT-DLP ====================
     async def download_with_ytdlp(self, url: str, user_id: int, is_video: bool = True) -> dict:
-        """yt-dlp — po_token bilan YouTube bot blokini chetlab o'tish"""
+        """yt-dlp - YouTube bot blokini chetlab o'tish"""
 
         player_clients_list = [
+            ['web_embedded'],
+            ['mediaconnect'],
             ['android'],
             ['ios'],
             ['web'],
@@ -368,12 +371,11 @@ class Downloader:
                 }
             }
 
-            # PO_TOKEN mavjud bo'lsa qo'shish (bot blokini chetlab o'tadi)
             if PO_TOKEN:
                 extractor_args['youtube']['po_token'] = [f'web+{PO_TOKEN}']
                 if VISITOR_DATA:
                     extractor_args['youtube']['visitor_data'] = [VISITOR_DATA]
-                logger.info(f"🔑 po_token ishlatilmoqda")
+                logger.info("po_token ishlatilmoqda")
 
             ydl_opts = {
                 'outtmpl': filepath_template,
@@ -384,9 +386,7 @@ class Downloader:
                 'socket_timeout': 30,
                 'retries': 3,
                 'extractor_args': extractor_args,
-                # Format tekshirishni o'chirish — "Requested format not available" xatosini hal qiladi
                 'check_formats': False,
-                'allow_unplayable_formats': True,
             }
 
             if not is_video:
@@ -395,7 +395,6 @@ class Downloader:
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
                 }]
-            # format ni umuman belgilamaymiz — yt-dlp o'zi eng yaxshisini tanlaydi
 
             cookie_file = self._find_cookie_file(url)
             if cookie_file:
@@ -404,9 +403,8 @@ class Downloader:
             if PROXY_URL:
                 ydl_opts['proxy'] = PROXY_URL
 
-            loop = asyncio.get_event_loop()
-            info = await loop.run_in_executor(
-                None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=True)
+            info = await asyncio.to_thread(
+                lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=True)
             )
 
             title = info.get('title', 'video') if info else 'video'
@@ -420,7 +418,7 @@ class Downloader:
                         break
 
             if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
-                logger.info(f"✅ yt-dlp success (clients={player_clients})")
+                logger.info(f"yt-dlp success (clients={player_clients})")
                 return {
                     "success": True, "filepath": filepath, "title": title,
                     "uploader": info.get('uploader', '') if info else '',
@@ -459,9 +457,8 @@ class Downloader:
             if PROXY_URL:
                 ydl_opts['proxy'] = PROXY_URL
 
-            loop = asyncio.get_event_loop()
-            info = await loop.run_in_executor(
-                None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=True)
+            info = await asyncio.to_thread(
+                lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=True)
             )
             title = info.get('title', 'video') if info else 'video'
 
@@ -484,36 +481,106 @@ class Downloader:
         except Exception as e:
             return {"success": False, "error": str(e)[:100]}
 
+    # ==================== SPOTIFY ====================
+    async def download_with_spotify(self, url: str, user_id: int) -> dict:
+        """Spotify linkdan yuklab olish (spotdl orqali)"""
+        try:
+            filename = f"{user_id}_{os.urandom(4).hex()}"
+            output_template = os.path.join(self.download_path, filename)
+
+            cmd = [
+                "spotdl", "download", url,
+                "--output", output_template,
+                "--format", "mp3",
+                "--bitrate", "192k",
+            ]
+
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.download_path,
+            )
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=120
+            )
+
+            if process.returncode != 0:
+                err_text = stderr.decode(errors='replace')[:200]
+                logger.warning(f"spotdl xato: {err_text}")
+
+            downloaded_file = None
+            now = time.time()
+
+            expected_path = output_template + ".mp3"
+            if os.path.exists(expected_path) and os.path.getsize(expected_path) > 10_000:
+                downloaded_file = expected_path
+            else:
+                mp3_files = []
+                for f in os.listdir(self.download_path):
+                    if f.endswith('.mp3'):
+                        full_path = os.path.join(self.download_path, f)
+                        mtime = os.path.getmtime(full_path)
+                        if (now - mtime) < 130 and os.path.getsize(full_path) > 10_000:
+                            mp3_files.append((full_path, mtime))
+                if mp3_files:
+                    mp3_files.sort(key=lambda x: x[1], reverse=True)
+                    downloaded_file = mp3_files[0][0]
+
+            if downloaded_file and os.path.exists(downloaded_file):
+                title = os.path.splitext(os.path.basename(downloaded_file))[0]
+                logger.info(f"Spotify success: {title}")
+                return {
+                    "success": True, "filepath": downloaded_file, "title": title,
+                    "uploader": "Spotify", "duration": 0, "platform": "spotify"
+                }
+
+            return {"success": False, "error": "Spotify yuklab bolmadi"}
+
+        except asyncio.TimeoutError:
+            return {"success": False, "error": "Spotify yuklash vaqti tugadi (timeout)"}
+        except FileNotFoundError:
+            return {"success": False, "error": "spotdl ornatilmagan. pip install spotdl"}
+        except Exception as e:
+            logger.error(f"Spotify download error: {str(e)[:100]}")
+            return {"success": False, "error": str(e)[:100]}
+
     # ==================== ASOSIY ====================
     async def download_video(self, url: str, user_id: int) -> dict:
+        if self._is_spotify_url(url):
+            return await self.download_with_spotify(url, user_id)
+
         if self._is_youtube_url(url):
-            logger.info("📺 YouTube video yuklanmoqda...")
+            logger.info("YouTube video yuklanmoqda...")
             for method in [
+                lambda: self.download_with_ytdlp(url, user_id, is_video=True),
                 lambda: self.download_with_scraping(url, user_id, is_video=True),
                 lambda: self.download_with_invidious(url, user_id, is_video=True),
                 lambda: self.download_with_piped(url, user_id, is_video=True),
-                lambda: self.download_with_ytdlp(url, user_id, is_video=True),
             ]:
                 res = await method()
                 if res.get("success"):
                     return res
-            return {"success": False, "error": "❌ YouTube yuklab bo'lmadi. PO_TOKEN kerak — Railway Variables ga qo'shing."}
+            return {"success": False, "error": "YouTube yuklab bolmadi. Qaytadan urinib koring."}
         else:
             return await self.download_non_youtube(url, user_id, is_video=True)
 
     async def download_audio(self, url: str, user_id: int) -> dict:
+        if self._is_spotify_url(url):
+            return await self.download_with_spotify(url, user_id)
+
         if self._is_youtube_url(url):
-            logger.info("🎵 YouTube audio yuklanmoqda...")
+            logger.info("YouTube audio yuklanmoqda...")
             for method in [
+                lambda: self.download_with_ytdlp(url, user_id, is_video=False),
                 lambda: self.download_with_scraping(url, user_id, is_video=False),
                 lambda: self.download_with_invidious(url, user_id, is_video=False),
                 lambda: self.download_with_piped(url, user_id, is_video=False),
-                lambda: self.download_with_ytdlp(url, user_id, is_video=False),
             ]:
                 res = await method()
                 if res.get("success"):
                     return res
-            return {"success": False, "error": "❌ YouTube yuklab bo'lmadi. PO_TOKEN kerak."}
+            return {"success": False, "error": "YouTube yuklab bolmadi. Qaytadan urinib koring."}
         else:
             return await self.download_non_youtube(url, user_id, is_video=False)
 

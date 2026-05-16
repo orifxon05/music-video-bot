@@ -16,7 +16,11 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # Webhook sozlamalari
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")  # Masalan: https://your-bot.onrender.com
 PORT = int(os.getenv("PORT", "8080"))
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "savemuzik-bot-secret-key-2026")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
+
+# Spotify sozlamalari
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "")
 
 # Supported platforms
 SUPPORTED_PLATFORMS = {
@@ -27,19 +31,16 @@ SUPPORTED_PLATFORMS = {
     "twitter": ["twitter.com", "x.com"],
     "pinterest": ["pinterest.com", "pin.it"],
     "reddit": ["reddit.com", "v.redd.it"],
+    "spotify": ["open.spotify.com"],
+    "soundcloud": ["soundcloud.com"],
 }
 
 # Download settings
 MAX_FILE_SIZE_MB = 50  # Maximum file size in MB
 DOWNLOAD_PATH = "downloads"
 
-# Instagram sozlamalari (login yoki cookies kerak)
-# 1-usul: Cookie fayli (eng yaxshi) - Browser'dan cookie eksport qiling
+# Instagram sozlamalari
 INSTAGRAM_COOKIES_FILE = os.getenv("INSTAGRAM_COOKIES_FILE", "www.instagram.com_cookies.txt")
-
-# 2-usul: Login ma'lumotlari (kamroq tavsiya etiladi)
-INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "")
-INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD", "")
 
 # Proxy va Tashqi API (Fix 403 Forbidden)
 # Railway'da uzoq muddat ishlash uchun proxy kerak
@@ -69,7 +70,7 @@ Assalomu alaykum! Men sizga yordam beraman:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-� **Qo'llab-quvvatlash:**
+**Qo'llab-quvvatlash:**
 Instagram • TikTok • YouTube • Facebook • Twitter
 
 ⚡ Tez va Bepul!

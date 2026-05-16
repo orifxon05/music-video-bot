@@ -7,6 +7,13 @@ __pycache__/
 # Downloads
 downloads/
 
+# Cookie fayllar (xavfsizlik uchun)
+*_cookies.txt
+cookies.txt
+
+# Database
+*.db
+
 # IDE
 .vscode/
 .idea/
