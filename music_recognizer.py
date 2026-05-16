@@ -47,10 +47,8 @@ class MusicRecognizer:
         try:
             output_path = filepath.rsplit('.', 1)[0] + '_converted.mp3'
             
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                lambda: self._do_convert(filepath, output_path)
+            await asyncio.to_thread(
+                self._do_convert, filepath, output_path
             )
             
             return output_path

@@ -53,7 +53,7 @@ async def get_cached_channels():
 async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from config import ADMIN_ID
     user_id = update.effective_user.id
-    if user_id == ADMIN_ID or user_id == 7693191223:
+    if user_id == ADMIN_ID:
         return True
 
     channels = await get_cached_channels()
@@ -107,7 +107,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from config import ADMIN_ID
-    if update.effective_user.id not in (ADMIN_ID, 7693191223):
+    if update.effective_user.id != ADMIN_ID:
         return
     keyboard = [
         [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
@@ -120,7 +120,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from config import ADMIN_ID
     user_id = update.effective_user.id
-    if user_id not in (ADMIN_ID, 7693191223):
+    if user_id != ADMIN_ID:
         return
 
     stats = db.get_stats()
@@ -626,7 +626,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "admin_menu":
         from config import ADMIN_ID
-        if user_id in (ADMIN_ID, 7693191223):
+        if user_id == ADMIN_ID:
             keyboard = [
                 [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
                 [InlineKeyboardButton("📢 Xabar yuborish", callback_data="admin_broadcast")],
@@ -731,7 +731,7 @@ async def broadcast_task(update: Update, context: ContextTypes.DEFAULT_TYPE, tex
         try:
             try:
                 await context.bot.send_message(chat_id=uid, text=text, parse_mode=ParseMode.HTML)
-            except:
+            except Exception:
                 await context.bot.send_message(chat_id=uid, text=text)
             count += 1
             if count % 20 == 0:
@@ -753,7 +753,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.add_user(user_id, update.effective_user.first_name, update.effective_user.username)
 
     from config import ADMIN_ID
-    is_admin = (user_id in (ADMIN_ID, 7693191223))
+    is_admin = (user_id == ADMIN_ID)
 
     if is_admin:
         state = context.user_data.get("admin_state")
@@ -825,7 +825,7 @@ async def _delete_msg(msg):
     """Xabarni xavfsiz o'chirish"""
     try:
         await msg.delete()
-    except:
+    except Exception:
         pass
 
 def format_duration(seconds) -> str:
