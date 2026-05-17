@@ -67,7 +67,7 @@ psutil==7.2.2
 pyarrow==23.0.0
 pyasn1==0.6.2
 pyasn1_modules==0.4.2
-PyAudio==0.2.14
+PyAudio==0.2.14; sys_platform == 'win32'
 PyAutoGUI==0.9.54; sys_platform == 'win32'
 pycaw==20251023; sys_platform == 'win32'
 pycparser==3.0
